@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CoF Chords">
+<meta name="theme-color" content="#ff8000">
+<meta name="description" content="Interactive circle of fifths with chord charts, scales, modes and AI teaching tools for piano.">
+
+<title>Circle of Fifths — Chord Charts</title>
+
+<!-- PWA icons -->
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="manifest" href="manifest.json">
+
+<!-- Splash screen colour for iPad -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #f0ebe4;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+  }
+  #splash {
+    position: fixed; inset: 0;
+    background: #f0ebe4;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px; z-index: 9999;
+    transition: opacity 0.4s ease;
+  }
+  #splash.hidden { opacity: 0; pointer-events: none; }
+  #splash svg { width: 120px; height: 120px; }
+  #splash h1 {
+    font-family: Georgia, serif;
+    font-size: 22px; font-weight: 400;
+    letter-spacing: 0.2em; color: #1a1a1a;
+    text-transform: uppercase;
+  }
+  #splash p { font-size: 12px; color: #aaa; letter-spacing: 0.1em; }
+  iframe {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    border: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  iframe.ready { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Splash screen -->
+<div id="splash">
+  <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <rect width="120" height="120" rx="26" fill="#fff"/>
+    <circle cx="60" cy="60" r="50" fill="none" stroke="#ff8000" stroke-width="7"/>
+    <circle cx="60" cy="60" r="35" fill="none" stroke="#e8e0d8" stroke-width="4"/>
+    <circle cx="60" cy="60" r="20" fill="#f7f4f0" stroke="#e0d8d0" stroke-width="2"/>
+    <text x="60" y="68" text-anchor="middle" font-size="24" font-family="Georgia,serif" fill="#ff8000">♩</text>
+    <text x="60" y="17"  text-anchor="middle" font-size="9" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">C</text>
+    <text x="85" y="25"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">G</text>
+    <text x="97" y="47"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">D</text>
+    <text x="97" y="73"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">A</text>
+    <text x="85" y="95"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">E</text>
+    <text x="60" y="107" text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">B</text>
+    <text x="35" y="95"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">F♯</text>
+    <text x="23" y="73"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">D♭</text>
+    <text x="23" y="47"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">A♭</text>
+    <text x="35" y="25"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">E♭</text>
+  </svg>
+  <h1>Circle of Fifths</h1>
+  <p>Loading chord charts…</p>
+</div>
+
+<!-- App -->
+<iframe id="app" src="Circle Of Fifths App.html" title="Circle of Fifths Chord Charts"></iframe>
+
+<script>
+  // Register service worker for offline PWA support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW registered:', reg.scope))
+        .catch(err => console.log('SW registration failed:', err));
+    });
+  }
+
+  // Hide splash once iframe loads
+  const iframe = document.getElementById('app');
+  const splash = document.getElementById('splash');
+  iframe.addEventListener('load', () => {
+    setTimeout(() => {
+      iframe.classList.add('ready');
+      splash.classList.add('hidden');
+    }, 300);
+  });
+</script>
+</body>
+</html>

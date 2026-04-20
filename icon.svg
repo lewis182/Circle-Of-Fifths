@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="114" fill="#fff"></rect>
+  
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#ff8000" stroke-width="28"></circle>
+  
+  <circle cx="256" cy="256" r="155" fill="none" stroke="#f0ebe4" stroke-width="20"></circle>
+  
+  <circle cx="256" cy="256" r="90" fill="#f0ebe4" stroke="#e0d8d0" stroke-width="6"></circle>
+  
+  <line x1="256.0" y1="156.0" x2="256.0" y2="108.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="306.0" y1="169.4" x2="330.0" y2="127.8" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="342.6" y1="206.0" x2="384.2" y2="182.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="356.0" y1="256.0" x2="404.0" y2="256.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="342.6" y1="306.0" x2="384.2" y2="330.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="306.0" y1="342.6" x2="330.0" y2="384.2" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="256.0" y1="356.0" x2="256.0" y2="404.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="206.0" y1="342.6" x2="182.0" y2="384.2" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="169.4" y1="306.0" x2="127.8" y2="330.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="156.0" y1="256.0" x2="108.0" y2="256.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="169.4" y1="206.0" x2="127.8" y2="182.0" stroke="#e0d8d0" stroke-width="5"></line>
+  <line x1="206.0" y1="169.4" x2="182.0" y2="127.8" stroke="#e0d8d0" stroke-width="5"></line>
+  
+  <text x="256" y="290" text-anchor="middle" font-size="110" font-family="Georgia,serif" fill="#ff8000">♩</text>
+  
+  <text x="256.0" y="68.0" text-anchor="middle" dominant-baseline="middle" font-size="26" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">C</text>
+  <text x="350.0" y="93.2" text-anchor="middle" dominant-baseline="middle" font-size="26" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">G</text>
+  <text x="418.8" y="162.0" text-anchor="middle" dominant-baseline="middle" font-size="26" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">D</text>
+  <text x="444.0" y="256.0" text-anchor="middle" dominant-baseline="middle" font-size="26" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">A</text>
+  <text x="418.8" y="350.0" text-anchor="middle" dominant-baseline="middle" font-size="26" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">E</text>
+  <text x="350.0" y="418.8" text-anchor="middle" dominant-baseline="middle" font-size="26" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">B</text>
+  <text x="256.0" y="444.0" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">F♯</text>
+  <text x="162.0" y="418.8" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">D♭</text>
+  <text x="93.2" y="350.0" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">A♭</text>
+  <text x="68.0" y="256.0" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">E♭</text>
+  <text x="93.2" y="162.0" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">B♭</text>
+  <text x="162.0" y="93.2" text-anchor="middle" dominant-baseline="middle" font-size="26" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">F</text>
+</svg>

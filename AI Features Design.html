@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Teaching Features — Design Exploration</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f0eee9; font-family: 'Helvetica Neue', Arial, sans-serif; overflow: hidden; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const ORANGE = '#ff8000';
+const RED    = '#c41a1a';
+
+// ── Mini Piano (decorative) ───────────────────────────────────────────────
+const MiniPiano = ({ highlighted = [], width = 300 }) => {
+  const whites = [0,2,4,5,7,9,11,12];
+  const blacks = [{off:1,li:0},{off:3,li:1},{off:6,li:3},{off:8,li:4},{off:10,li:5}];
+  const ww = width / whites.length;
+  const wh = ww * 3.5;
+  const bw = ww * 0.6; const bh = wh * 0.62;
+  return (
+    <svg width={width} height={wh+2} style={{display:'block',border:'1px solid #ddd',borderRadius:4}}>
+      {whites.map((s,i) => (
+        <rect key={s} x={i*ww+0.5} y={0.5} width={ww-1} height={wh-1} rx={2}
+          fill={highlighted.includes(s) ? ORANGE : '#fff'} stroke="#ddd" strokeWidth={1}/>
+      ))}
+      {blacks.map(({off,li}) => (
+        <rect key={off} x={(li+1)*ww-bw/2} y={0.5} width={bw} height={bh} rx={2}
+          fill={highlighted.includes(off) ? ORANGE : '#222'} stroke="#000" strokeWidth={1}/>
+      ))}
+    </svg>
+  );
+};
+
+// ── App Chrome Shell ─────────────────────────────────────────────────────
+const AppShell = ({ children, header, width=380, height=580 }) => (
+  <div style={{width,height,background:'#fff',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    <div style={{
+      background:'#fff',borderBottom:'2px solid #f0ebe4',
+      padding:'10px 14px',flexShrink:0,
+    }}>{header}</div>
+    <div style={{flex:1,overflowY:'auto',overflowX:'hidden'}}>{children}</div>
+  </div>
+);
+
+const AppHeader = ({ keyName, isMinor }) => (
+  <div style={{display:'flex',alignItems:'center',gap:10}}>
+    <div style={{
+      width:36,height:36,borderRadius:'50%',background:ORANGE,
+      display:'flex',alignItems:'center',justifyContent:'center',
+      fontSize:14,fontWeight:900,color:'#fff',fontFamily:'Georgia,serif',flexShrink:0,
+    }}>{keyName}</div>
+    <span style={{fontSize:16,fontWeight:700,letterSpacing:'0.18em',color:'#1a1a1a'}}>
+      C H O R D S
+    </span>
+    <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+      {['△','M7','7','°7','𝄞'].map(t=>(
+        <div key={t} style={{
+          width:36,height:36,borderRadius:8,border:'1.5px solid #ddd',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          fontSize:13,fontWeight:700,color:'#888',
+        }}>{t}</div>
+      ))}
+    </div>
+  </div>
+);
+
+// ── AI Pill Badge ─────────────────────────────────────────────────────────
+const AIPill = ({ label }) => (
+  <div style={{
+    display:'inline-flex',alignItems:'center',gap:4,
+    padding:'2px 8px',borderRadius:12,
+    background:'#fff3e0',border:'1px solid #ffcc80',
+    fontSize:10,fontWeight:700,color:ORANGE,letterSpacing:'0.06em',
+  }}>
+    ✦ {label}
+  </div>
+);
+
+// ── AI Response Bubble ────────────────────────────────────────────────────
+const AIBubble = ({ children, compact }) => (
+  <div style={{
+    background:'#fff8f0',border:'1px solid #ffe0b2',
+    borderRadius:10,padding: compact?'8px 10px':'12px 14px',
+    position:'relative',
+  }}>
+    <div style={{
+      position:'absolute',top:8,right:10,
+      display:'flex',alignItems:'center',gap:3,
+      fontSize:9,color:ORANGE,fontWeight:700,letterSpacing:'0.05em',
+    }}>
+      <span style={{fontSize:11}}>✦</span> AI
+    </div>
+    <div style={{fontSize:12,color:'#444',lineHeight:1.55,paddingRight:30}}>
+      {children}
+    </div>
+  </div>
+);
+
+// ── FEATURE 1: Explain This Chord ─────────────────────────────────────────
+const Feature1 = () => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <AppShell width={380} height={520}
+      header={<AppHeader keyName="C"/>}>
+      <div style={{padding:'16px 14px'}}>
+        <p style={{textAlign:'center',fontSize:13,color:'#555',marginBottom:8}}>
+          C Major  —  Root Position
+        </p>
+        <MiniPiano highlighted={[0,4,7]} width={350}/>
+        <div style={{display:'flex',justifyContent:'center',marginTop:10,gap:8,flexWrap:'wrap'}}>
+          {['C₄','E₄','G₄'].map(n=>(
+            <span key={n} style={{
+              border:`1px solid ${ORANGE}`,color:ORANGE,
+              padding:'2px 10px',borderRadius:4,fontSize:12,fontWeight:700,
+            }}>{n}</span>
+          ))}
+        </div>
+
+        {/* AI Button */}
+        <button onClick={()=>setOpen(!open)} style={{
+          display:'flex',alignItems:'center',justifyContent:'center',gap:6,
+          width:'100%',marginTop:14,padding:'8px',
+          borderRadius:8,border:`1.5px solid ${ORANGE}`,
+          background: open?ORANGE:'#fff8f0',
+          color: open?'#fff':ORANGE,
+          fontSize:12,fontWeight:700,cursor:'pointer',
+        }}>
+          <span>✦</span> {open ? 'Hide Explanation' : 'Explain This Chord'}
+        </button>
+
+        {open && (
+          <div style={{marginTop:10}}>
+            <AIBubble>
+              <strong>C Major</strong> is the simplest, brightest chord — built on the 1st, 3rd and 5th notes of the C major scale. It has a strong, happy, resolved sound.
+              <br/><br/>
+              <strong>You'll hear it in:</strong> "Let It Be" (Beatles), "No Woman No Cry" (Marley), and thousands of pop songs.
+              <br/><br/>
+              <strong>Tip:</strong> C Major root position is the most stable voicing — your ear will always want to return to it.
+            </AIBubble>
+          </div>
+        )}
+
+        <p style={{textAlign:'center',fontSize:13,color:'#555',marginTop:20,marginBottom:8}}>
+          C Major  —  1st Inversion
+        </p>
+        <MiniPiano highlighted={[4,7,12]} width={350}/>
+      </div>
+    </AppShell>
+  );
+};
+
+// ── FEATURE 2: Daily Challenge Banner ─────────────────────────────────────
+const Feature2 = () => (
+  <div style={{width:520,fontFamily:'Helvetica Neue,Arial,sans-serif'}}>
+    {/* CoF circle stub */}
+    <div style={{background:'#f0ebe4',padding:'14px 16px'}}>
+      <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.35em',color:'#aaa',textAlign:'center',marginBottom:12}}>SELECT A KEY</p>
+      {/* Mini CoF stub */}
+      <div style={{display:'flex',justifyContent:'center',marginBottom:14}}>
+        <svg width={200} height={200} viewBox="0 0 200 200">
+          <circle cx={100} cy={100} r={95} fill="#fff" stroke={ORANGE} strokeWidth={4}/>
+          <circle cx={100} cy={100} r={65} fill="none" stroke="#e8e0d8" strokeWidth={1.5}/>
+          <circle cx={100} cy={100} r={35} fill="#f7f4f0" stroke="#e8e0d8" strokeWidth={1.5}/>
+          {['C','G','D','A','E','B','F♯','D♭','A♭','E♭','B♭','F'].map((k,i)=>{
+            const a=(i*30-90)*Math.PI/180;
+            return <text key={k} x={100+80*Math.cos(a)} y={100+80*Math.sin(a)}
+              textAnchor="middle" dominantBaseline="middle"
+              fontSize={i===0?13:10} fontWeight="900" fill="#1a1a1a" fontFamily="Georgia,serif">{k}</text>;
+          })}
+          {['Am','Em','Bm','F♯m','C♯m','G♯m','E♭m','B♭m','Fm','Cm','Gm','Dm'].map((k,i)=>{
+            const a=(i*30-90)*Math.PI/180;
+            return <text key={k} x={100+50*Math.cos(a)} y={100+50*Math.sin(a)}
+              textAnchor="middle" dominantBaseline="middle"
+              fontSize={8} fontWeight="600" fill="#888" fontFamily="sans-serif">{k}</text>;
+          })}
+          <text x={100} y={96} textAnchor="middle" fill={ORANGE} fontSize={18} fontFamily="Georgia,serif">♩</text>
+          <text x={100} y={110} textAnchor="middle" fill="#bbb" fontSize={6} letterSpacing="2" fontFamily="sans-serif">MINOR</text>
+        </svg>
+      </div>
+
+      {/* Daily Challenge Banner */}
+      <div style={{
+        background:'#fff',border:`2px solid ${ORANGE}`,borderRadius:12,
+        padding:'12px 14px',marginBottom:8,
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+          <AIPill label="DAILY CHALLENGE"/>
+          <span style={{fontSize:10,color:'#aaa',marginLeft:'auto'}}>Day 3 streak 🔥</span>
+        </div>
+        <p style={{fontSize:13,fontWeight:700,color:'#1a1a1a',marginBottom:4}}>
+          Today: Master D Major inversions
+        </p>
+        <p style={{fontSize:11,color:'#666',lineHeight:1.5}}>
+          Practice Root → 1st → 2nd inversions in order. Try to play them without looking at the keyboard diagram.
+        </p>
+        <div style={{display:'flex',gap:8,marginTop:10}}>
+          <button style={{
+            flex:1,padding:'7px',borderRadius:7,
+            background:ORANGE,border:'none',color:'#fff',
+            fontSize:11,fontWeight:700,cursor:'pointer',
+          }}>Start Practice</button>
+          <button style={{
+            flex:1,padding:'7px',borderRadius:7,
+            background:'#f5f5f5',border:'1.5px solid #ddd',color:'#888',
+            fontSize:11,fontWeight:700,cursor:'pointer',
+          }}>Skip Today</button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ── FEATURE 3: Quiz Modal ─────────────────────────────────────────────────
+const Feature3 = () => {
+  const [selected, setSelected] = React.useState(null);
+  const options = ['C, E, G','C, Eb, G','C, E, G#','C, F, G'];
+  const correct = 0;
+  return (
+    <div style={{
+      width:380,background:'rgba(0,0,0,0.45)',display:'flex',
+      alignItems:'center',justifyContent:'center',padding:20,
+      minHeight:480,
+    }}>
+      <div style={{
+        background:'#fff',borderRadius:16,padding:'20px',width:'100%',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+          <AIPill label="CHORD QUIZ"/>
+          <span style={{marginLeft:'auto',fontSize:11,color:'#aaa'}}>Q 3 of 5</span>
+        </div>
+        <div style={{
+          background:'#f0ebe4',borderRadius:10,padding:'14px',marginBottom:16,
+        }}>
+          <p style={{fontSize:14,fontWeight:600,color:'#1a1a1a',lineHeight:1.5}}>
+            Which notes make up a <strong style={{color:ORANGE}}>C Major</strong> chord?
+          </p>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
+          {options.map((o,i)=>{
+            const isSelected = selected===i;
+            const isCorrect  = i===correct;
+            const showResult = selected!==null;
+            let bg='#fff', border='#ddd', color='#333';
+            if (showResult && isCorrect)  { bg='#e8f5e9'; border='#4caf50'; color='#2e7d32'; }
+            if (showResult && isSelected && !isCorrect) { bg='#ffebee'; border='#ef5350'; color='#c62828'; }
+            return (
+              <button key={i} onClick={()=>!selected&&setSelected(i)} style={{
+                padding:'10px 14px',borderRadius:8,border:`1.5px solid ${border}`,
+                background:bg,color,fontSize:12,fontWeight:600,
+                cursor:'pointer',textAlign:'left',
+                display:'flex',alignItems:'center',gap:8,
+              }}>
+                <span style={{
+                  width:22,height:22,borderRadius:'50%',
+                  background: showResult&&isCorrect?'#4caf50':showResult&&isSelected?'#ef5350':ORANGE,
+                  color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:11,fontWeight:700,flexShrink:0,
+                }}>{String.fromCharCode(65+i)}</span>
+                {o}
+                {showResult && isCorrect && <span style={{marginLeft:'auto'}}>✓</span>}
+                {showResult && isSelected && !isCorrect && <span style={{marginLeft:'auto'}}>✗</span>}
+              </button>
+            );
+          })}
+        </div>
+        {selected!==null && (
+          <AIBubble compact>
+            {selected===correct
+              ? '✓ Correct! C Major = C, E, G — built by stacking a major 3rd (4 semitones) then a minor 3rd (3 semitones).'
+              : '✗ Not quite. C Major is C, E, G. You picked the wrong spelling of the 3rd. Remember: Major chords always use the natural (unaltered) 3rd.'}
+          </AIBubble>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── FEATURE 4: Glossary Popup ─────────────────────────────────────────────
+const Feature4 = () => (
+  <AppShell width={340} height={440} header={<AppHeader keyName="C"/>}>
+    <div style={{padding:'14px'}}>
+      <p style={{textAlign:'center',fontSize:13,color:'#555',marginBottom:8}}>
+        C Major 7  —  Root Position
+      </p>
+      <MiniPiano highlighted={[0,4,7,11]} width={310}/>
+
+      {/* Highlighted term */}
+      <p style={{fontSize:13,color:'#555',marginTop:14,lineHeight:1.6,textAlign:'center'}}>
+        This is the{' '}
+        <span style={{
+          borderBottom:`2px dotted ${ORANGE}`,color:ORANGE,
+          fontWeight:700,cursor:'pointer',position:'relative',
+        }}>
+          Root Position
+        </span>{' '}voicing of C Major 7
+      </p>
+
+      {/* Popup */}
+      <div style={{
+        background:'#fff',border:`1.5px solid ${ORANGE}`,
+        borderRadius:10,padding:'12px',marginTop:12,
+        boxShadow:'0 4px 20px rgba(255,128,0,0.15)',position:'relative',
+      }}>
+        <div style={{
+          position:'absolute',top:-8,left:80,
+          width:14,height:14,background:'#fff',
+          border:`1.5px solid ${ORANGE}`,
+          transform:'rotate(45deg)',borderBottom:'none',borderRight:'none',
+        }}/>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+          <span style={{fontSize:14}}>📖</span>
+          <strong style={{fontSize:13,color:'#1a1a1a'}}>Root Position</strong>
+          <AIPill label="GLOSSARY"/>
+        </div>
+        <p style={{fontSize:12,color:'#555',lineHeight:1.55}}>
+          When the <strong>lowest note</strong> of a chord is the root note (the note it's named after). Think of it as the chord sitting on its foundation.
+        </p>
+        <p style={{fontSize:11,color:ORANGE,marginTop:6,fontWeight:600}}>
+          Analogy: Like a building sitting on its ground floor — stable and resolved.
+        </p>
+      </div>
+    </div>
+  </AppShell>
+);
+
+// ── FEATURE 5: Scale Mood ─────────────────────────────────────────────────
+const Feature5 = () => (
+  <AppShell width={360} height={420} header={<AppHeader keyName="Am"/>}>
+    <div style={{padding:'14px'}}>
+      {[
+        { name:'Natural Minor Scale', mood:'Melancholic · introspective', emoji:'🌙',
+          color:'#5c6bc0', example:'Stairway to Heaven, Nothing Else Matters' },
+        { name:'Harmonic Minor', mood:'Exotic · tense · dramatic', emoji:'🎭',
+          color:'#8d6e63', example:'Smooth Criminal, Classical violin solos' },
+        { name:'Minor Pentatonic', mood:'Raw · bluesy · soulful', emoji:'🔥',
+          color:'#e64a19', example:'Almost every rock guitar solo ever written' },
+      ].map(s=>(
+        <div key={s.name} style={{
+          background:'#fafafa',border:'1px solid #eee',
+          borderRadius:10,padding:'10px 12px',marginBottom:10,
+          borderLeft:`3px solid ${s.color}`,
+        }}>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+            <span style={{fontSize:16}}>{s.emoji}</span>
+            <strong style={{fontSize:12,color:'#1a1a1a'}}>{s.name}</strong>
+            <AIPill label="AI MOOD"/>
+          </div>
+          <p style={{fontSize:12,color:s.color,fontWeight:700,marginBottom:3}}>{s.mood}</p>
+          <p style={{fontSize:11,color:'#888',fontStyle:'italic'}}>"{s.example}"</p>
+        </div>
+      ))}
+    </div>
+  </AppShell>
+);
+
+// ── FEATURE 6: Chord Progression Suggester ────────────────────────────────
+const Feature6 = () => (
+  <AppShell width={380} height={520} header={<AppHeader keyName="C"/>}>
+    <div style={{padding:'14px'}}>
+      <div style={{
+        background:'#fff8f0',border:`1.5px solid ${ORANGE}`,
+        borderRadius:12,padding:'14px',marginBottom:14,
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+          <AIPill label="PROGRESSIONS"/>
+          <span style={{fontSize:11,color:'#aaa',marginLeft:'auto'}}>Key of C Major</span>
+        </div>
+        {[
+          { name:'I – IV – V – I', chords:['C','F','G','C'], feel:'Classic · resolved', tag:'POP' },
+          { name:'ii – V – I', chords:['Dm','G7','CMaj7'], feel:'Jazzy · sophisticated', tag:'JAZZ' },
+          { name:'I – V – vi – IV', chords:['C','G','Am','F'], feel:'Modern pop anthem', tag:'POP' },
+          { name:'I – vi – IV – V', chords:['C','Am','F','G'], feel:'Timeless · nostalgic', tag:'50s' },
+        ].map(p=>(
+          <div key={p.name} style={{
+            background:'#fff',border:'1px solid #ffe0b2',
+            borderRadius:8,padding:'9px 12px',marginBottom:8,cursor:'pointer',
+          }}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+              <span style={{fontSize:10,fontWeight:700,color:'#fff',
+                background:ORANGE,padding:'1px 6px',borderRadius:4}}>{p.tag}</span>
+              <strong style={{fontSize:12,color:'#1a1a1a'}}>{p.name}</strong>
+            </div>
+            <div style={{display:'flex',gap:6,marginBottom:4,flexWrap:'wrap'}}>
+              {p.chords.map((c,i)=>(
+                <span key={i} style={{
+                  padding:'3px 10px',borderRadius:5,
+                  background:'#f5f5f5',border:'1px solid #ddd',
+                  fontSize:12,fontWeight:700,color:'#333',cursor:'pointer',
+                }}>{c}</span>
+              ))}
+            </div>
+            <p style={{fontSize:11,color:'#888',fontStyle:'italic'}}>{p.feel}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </AppShell>
+);
+
+// ── FEATURE 7: Why Does This Work ─────────────────────────────────────────
+const Feature7 = () => (
+  <div style={{
+    width:380,background:'rgba(0,0,0,0.45)',display:'flex',
+    alignItems:'center',justifyContent:'center',padding:20,minHeight:460,
+  }}>
+    <div style={{background:'#fff',borderRadius:16,padding:'20px',width:'100%',
+      boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+        <AIPill label="HARMONY ANALYSER"/>
+      </div>
+      <p style={{fontSize:13,fontWeight:600,color:'#1a1a1a',marginBottom:14}}>
+        Why do <span style={{color:ORANGE}}>C Major</span> and <span style={{color:'#5c6bc0'}}>Am</span> sound so natural together?
+      </p>
+      <div style={{display:'flex',gap:10,marginBottom:14}}>
+        {[['C Major','C · E · G',ORANGE],['Am','A · C · E','#5c6bc0']].map(([name,notes,col])=>(
+          <div key={name} style={{
+            flex:1,border:`1.5px solid ${col}`,borderRadius:8,
+            padding:'8px 10px',textAlign:'center',
+          }}>
+            <p style={{fontSize:13,fontWeight:700,color:col}}>{name}</p>
+            <p style={{fontSize:11,color:'#888',marginTop:3}}>{notes}</p>
+          </div>
+        ))}
+      </div>
+      <AIBubble>
+        These two chords share <strong>2 notes: C and E</strong>. This common-tone relationship makes the transition smooth — your ear barely notices the change.
+        <br/><br/>
+        Am is also the <strong>relative minor</strong> of C Major — they share the same key signature (no sharps or flats), so they naturally belong together.
+        <br/><br/>
+        <span style={{color:ORANGE,fontWeight:600}}>Used in: "Wonderwall," "Hotel California," thousands of ballads.</span>
+      </AIBubble>
+    </div>
+  </div>
+);
+
+// ── FEATURE 8: Practice Path ──────────────────────────────────────────────
+const Feature8 = () => (
+  <AppShell width={380} height={500} header={<AppHeader keyName="C"/>}>
+    <div style={{padding:'14px'}}>
+      <div style={{
+        background:'#fff8f0',border:`1.5px solid ${ORANGE}`,
+        borderRadius:12,padding:'14px',
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+          <AIPill label="YOUR PRACTICE PATH"/>
+        </div>
+        <p style={{fontSize:11,color:'#888',marginBottom:12}}>
+          Based on your session — you've explored C, G, Am
+        </p>
+        {[
+          { step:1, title:'Complete C Major inversions', detail:'You\'ve seen Root. Try 1st + 2nd.', done:true },
+          { step:2, title:'Explore D Major', detail:'Next logical step on the CoF — only 2 sharps.', done:false, active:true },
+          { step:3, title:'Link C → G → D progression', detail:'Play I–IV–V across all three keys.', done:false },
+          { step:4, title:'Learn the minor relatives', detail:'Am, Em, Bm — same key signatures.', done:false },
+          { step:5, title:'Chord quiz: C, G, D Major', detail:'Test your knowledge before moving on.', done:false },
+        ].map(s=>(
+          <div key={s.step} style={{
+            display:'flex',gap:10,alignItems:'flex-start',
+            marginBottom:10,opacity:s.done?0.5:1,
+          }}>
+            <div style={{
+              width:24,height:24,borderRadius:'50%',flexShrink:0,marginTop:1,
+              background:s.done?'#4caf50':s.active?ORANGE:'#e0e0e0',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:11,fontWeight:700,color:'#fff',
+            }}>{s.done?'✓':s.step}</div>
+            <div>
+              <p style={{fontSize:12,fontWeight:600,color:s.active?ORANGE:'#1a1a1a'}}>{s.title}</p>
+              <p style={{fontSize:11,color:'#888'}}>{s.detail}</p>
+            </div>
+          </div>
+        ))}
+        <button style={{
+          width:'100%',padding:'9px',borderRadius:8,
+          background:ORANGE,border:'none',color:'#fff',
+          fontSize:12,fontWeight:700,cursor:'pointer',marginTop:4,
+        }}>Continue to Step 2 →</button>
+      </div>
+    </div>
+  </AppShell>
+);
+
+// ── FEATURE 9: Song Decoder ───────────────────────────────────────────────
+const Feature9 = () => {
+  const [searched, setSearched] = React.useState(true);
+  return (
+    <div style={{
+      width:380,background:'rgba(0,0,0,0.45)',display:'flex',
+      alignItems:'center',justifyContent:'center',padding:20,minHeight:460,
+    }}>
+      <div style={{background:'#fff',borderRadius:16,padding:'20px',width:'100%',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+          <AIPill label="SONG DECODER"/>
+        </div>
+        <div style={{
+          display:'flex',gap:8,marginBottom:14,
+        }}>
+          <input defaultValue="Let It Be – Beatles" style={{
+            flex:1,padding:'9px 12px',borderRadius:8,
+            border:'1.5px solid #ddd',fontSize:12,fontFamily:'inherit',
+          }}/>
+          <button style={{
+            padding:'9px 14px',borderRadius:8,background:ORANGE,
+            border:'none',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',
+          }}>Go</button>
+        </div>
+        {searched && (
+          <AIBubble>
+            <strong>"Let It Be"</strong> is in <strong style={{color:ORANGE}}>C Major</strong>.
+            <br/><br/>
+            Main progression: <strong>C – G – Am – F</strong> (I–V–vi–IV)
+            <br/><br/>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}}>
+              {['C','G','Am','F'].map(c=>(
+                <span key={c} style={{
+                  padding:'3px 10px',borderRadius:5,
+                  background:'#fff3e0',border:`1px solid ${ORANGE}`,
+                  fontSize:12,fontWeight:700,color:ORANGE,cursor:'pointer',
+                }}>{c} →</span>
+              ))}
+            </div>
+            <p style={{marginTop:8,fontSize:11,color:'#888'}}>
+              Tap any chord to open it in the app.
+            </p>
+          </AIBubble>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── FEATURE 10: Ear Training ──────────────────────────────────────────────
+const Feature10 = () => (
+  <AppShell width={360} height={460} header={<AppHeader keyName="C"/>}>
+    <div style={{padding:'14px'}}>
+      <p style={{textAlign:'center',fontSize:13,color:'#555',marginBottom:8}}>
+        C Major  —  2nd Inversion
+      </p>
+      <MiniPiano highlighted={[7,12,4+12]} width={330}/>
+      <div style={{
+        background:'#fff8f0',border:`1.5px solid ${ORANGE}`,
+        borderRadius:10,padding:'12px',marginTop:12,
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+          <span style={{fontSize:14}}>👂</span>
+          <strong style={{fontSize:12,color:'#1a1a1a'}}>Ear Training</strong>
+          <AIPill label="AI GUIDE"/>
+        </div>
+        <AIBubble compact>
+          <strong>2nd Inversion sounds unstable</strong> — like a question mid-sentence. The G in the bass creates tension that wants to resolve to C.
+          <br/><br/>
+          <strong>Listen for:</strong> The "floating" quality. Beethoven uses this in his 5th Symphony opening bars for dramatic effect.
+          <br/><br/>
+          <span style={{color:ORANGE,fontWeight:600}}>
+            🎵 Compare: play Root position then this — hear how Root feels "landed"?
+          </span>
+        </AIBubble>
+      </div>
+    </div>
+  </AppShell>
+);
+
+// ── FEATURE 11: Relative Key Journey ─────────────────────────────────────
+const Feature11 = () => (
+  <AppShell width={380} height={500} header={<AppHeader keyName="C"/>}>
+    <div style={{padding:'14px'}}>
+      <div style={{
+        background:'#fff8f0',border:`1.5px solid ${ORANGE}`,
+        borderRadius:12,padding:'14px',
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+          <AIPill label="KEY JOURNEY"/>
+          <span style={{fontSize:11,color:'#888',marginLeft:'auto'}}>3-key family</span>
+        </div>
+        <AIBubble compact>
+          <strong>C Major → G Major → Am</strong> form a natural musical family. Master these three and you can play hundreds of songs.
+        </AIBubble>
+        <div style={{marginTop:12}}>
+          {[
+            { key:'C Major', role:'Home base', desc:'0 sharps/flats. The most natural key on piano.', col:ORANGE, step:'Start here' },
+            { key:'G Major', role:'Dominant', desc:'1 sharp (F♯). One step clockwise on the Circle.', col:'#43a047', step:'Then this' },
+            { key:'Am', role:'Relative Minor', desc:'Same notes as C Major — darker, more emotional.', col:'#5c6bc0', step:'Then this' },
+          ].map((k,i)=>(
+            <div key={k.key} style={{display:'flex',gap:10,alignItems:'stretch',marginBottom:8}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',width:32}}>
+                <div style={{
+                  width:28,height:28,borderRadius:'50%',
+                  background:k.col,color:'#fff',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:11,fontWeight:700,flexShrink:0,
+                }}>{i+1}</div>
+                {i<2&&<div style={{flex:1,width:2,background:'#e0e0e0',margin:'3px 0'}}/>}
+              </div>
+              <div style={{
+                flex:1,background:'#fff',border:'1px solid #eee',
+                borderRadius:8,padding:'8px 10px',cursor:'pointer',
+                borderLeft:`3px solid ${k.col}`,
+              }}>
+                <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:3}}>
+                  <strong style={{fontSize:13,color:k.col}}>{k.key}</strong>
+                  <span style={{fontSize:9,fontWeight:700,color:'#888',
+                    background:'#f5f5f5',padding:'1px 5px',borderRadius:3}}>
+                    {k.role}
+                  </span>
+                </div>
+                <p style={{fontSize:11,color:'#888'}}>{k.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button style={{
+          width:'100%',padding:'8px',borderRadius:8,
+          background:'#f5f5f5',border:'1.5px solid #ddd',
+          color:'#555',fontSize:11,fontWeight:700,cursor:'pointer',marginTop:4,
+        }}>Generate Next Journey →</button>
+      </div>
+    </div>
+  </AppShell>
+);
+
+// ── MAIN ──────────────────────────────────────────────────────────────────
+const App = () => (
+  <DesignCanvas>
+    {/* ── BEGINNER ──────────────────────────────────────────────── */}
+    <DCSection
+      title="🟢 Beginner AI Features"
+      subtitle="Low complexity — single-tap interactions, contextual explanations, zero setup"
+      gap={40}>
+      <DCArtboard label="1. Explain This Chord" width={380} height={520}>
+        <Feature1/>
+      </DCArtboard>
+      <DCArtboard label="2. Daily Key Challenge" width={520} height={520}>
+        <Feature2/>
+      </DCArtboard>
+      <DCArtboard label="3. Chord Quiz" width={380} height={480}>
+        <Feature3/>
+      </DCArtboard>
+      <DCArtboard label="4. Glossary Pop-up" width={340} height={440}>
+        <Feature4/>
+      </DCArtboard>
+      <DCArtboard label="5. Scale Mood Descriptor" width={360} height={420}>
+        <Feature5/>
+      </DCArtboard>
+    </DCSection>
+
+    {/* ── INTERMEDIATE ──────────────────────────────────────────── */}
+    <DCSection
+      title="🟡 Intermediate AI Features"
+      subtitle="More complex interactions — multi-step flows, personalisation, cross-key analysis"
+      gap={40}>
+      <DCArtboard label="6. Chord Progression Suggester" width={380} height={520}>
+        <Feature6/>
+      </DCArtboard>
+      <DCArtboard label="7. Why Does This Work? Analyser" width={380} height={460}>
+        <Feature7/>
+      </DCArtboard>
+      <DCArtboard label="8. Practice Path Generator" width={380} height={500}>
+        <Feature8/>
+      </DCArtboard>
+      <DCArtboard label="9. Song Chord Decoder" width={380} height={460}>
+        <Feature9/>
+      </DCArtboard>
+      <DCArtboard label="10. Ear Training Companion" width={360} height={460}>
+        <Feature10/>
+      </DCArtboard>
+      <DCArtboard label="11. Relative Key Journey" width={380} height={500}>
+        <Feature11/>
+      </DCArtboard>
+    </DCSection>
+  </DesignCanvas>
+);
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
