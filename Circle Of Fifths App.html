@@ -122,6 +122,37 @@ const NOTE_FLAT  = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','
 const NOTE_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const noteName = (pc,flat=true) => flat ? NOTE_FLAT[pc] : NOTE_SHARP[pc];
 
+// ── NOTE ROLE COLORS ─────────────────────────────────────────────────────────
+// Each interval in a chord has a fixed role color regardless of inversion
+const ROLE_COLORS = {
+  0:  '#ff8000', // Root       — orange
+  2:  '#8bc34a', // Maj 2nd    — lime  (Sus2)
+  3:  '#42a5f5', // Min 3rd    — blue
+  4:  '#1976d2', // Maj 3rd    — dark blue
+  5:  '#ff7043', // Perf 4th   — coral (Sus4)
+  6:  '#ab47bc', // Dim 5th    — purple
+  7:  '#26a69a', // Perf 5th   — teal
+  9:  '#ec407a', // Dim 7th/6  — pink
+  10: '#7e57c2', // Min 7th    — deep purple
+  11: '#3949ab', // Maj 7th    — indigo
+};
+const ROLE_LABELS = {
+  0:'Root', 2:'2nd', 3:'♭3rd', 4:'3rd', 5:'4th', 6:'♭5th', 7:'5th', 9:'°7', 10:'♭7', 11:'7'
+};
+
+function getNoteColors(root, formula) {
+  const map = {};
+  formula.forEach(iv => {
+    const pc = (root + iv) % 12;
+    map[pc] = ROLE_COLORS[iv] || '#ff8000';
+  });
+  return map;
+}
+
+function getRoleLegend(formula) {
+  return formula.map(iv => ({ color: ROLE_COLORS[iv]||'#ff8000', label: ROLE_LABELS[iv]||'' }));
+}
+
 function getChordMidi(root,formula,inv) {
   let notes=formula.map(iv=>60+root+iv);
   for(let i=0;i<inv;i++){const mn=Math.min(...notes);notes[notes.indexOf(mn)]+=12;}
@@ -142,7 +173,9 @@ function getScaleMidi(root,intervals) {
 const WHITE_OFFSETS=[0,2,4,5,7,9,11,12,14,16,17,19,21,23,24];
 const BLACK_LEFT={1:0,3:1,6:3,8:4,10:5,13:7,15:8,18:10,20:11,22:12};
 
-const Piano = ({ midiNotes, rootPc, accent, preferFlat=true }) => {
+// noteColors: { pc → color } — if provided, each note gets its role color
+// accent: fallback single color for scales
+const Piano = ({ midiNotes, rootPc, accent, preferFlat=true, noteColors=null }) => {
   const ref=useRef(null); const [w,setW]=useState(680);
   useEffect(()=>{
     if(!ref.current)return;
@@ -150,15 +183,17 @@ const Piano = ({ midiNotes, rootPc, accent, preferFlat=true }) => {
     ob.observe(ref.current); return()=>ob.disconnect();
   },[]);
   const nW=WHITE_OFFSETS.length,ww=w/nW,wh=Math.round(ww*3.9);
-  const bw=Math.round(ww*0.6),bh=Math.round(wh*0.62),START=60,acc=accent||ORANGE;
+  const bw=Math.round(ww*0.6),bh=Math.round(wh*0.62),START=60;
+  const keyColor = (pc) => noteColors ? (noteColors[pc] || accent||ORANGE) : (accent||ORANGE);
   const blackKeys=Object.entries(BLACK_LEFT).map(([off,li])=>({off:+off,midi:START+(+off),x:(li+1)*ww-bw/2}));
   return (
     <div ref={ref} style={{width:'100%'}}>
       <svg width={w} height={wh+2} style={{display:'block',border:'1.5px solid #ccc',borderRadius:6,background:'#fff'}}>
         {WHITE_OFFSETS.map((off,i)=>{
           const midi=START+off,isHl=midiNotes.includes(midi),pc=midi%12;
+          const col=keyColor(pc);
           return(<g key={off}>
-            <rect x={i*ww+0.5} y={0.5} width={ww-1} height={wh-1} fill={isHl?acc:'#fff'} stroke="#ccc" strokeWidth={1} rx={2}/>
+            <rect x={i*ww+0.5} y={0.5} width={ww-1} height={wh-1} fill={isHl?col:'#fff'} stroke="#ccc" strokeWidth={1} rx={2}/>
             {isHl&&<text x={i*ww+ww/2} y={wh-9} textAnchor="middle" dominantBaseline="auto" fill="#fff"
               fontSize={Math.max(8,Math.min(13,Math.round(ww*0.36)))} fontWeight="800"
               fontFamily="Helvetica Neue,Arial,sans-serif" style={{pointerEvents:'none'}}>{noteName(pc,preferFlat)}</text>}
@@ -166,8 +201,9 @@ const Piano = ({ midiNotes, rootPc, accent, preferFlat=true }) => {
         })}
         {blackKeys.map(({off,midi,x})=>{
           const isHl=midiNotes.includes(midi),pc=midi%12;
+          const col=keyColor(pc);
           return(<g key={off}>
-            <rect x={x} y={0.5} width={bw} height={bh} fill={isHl?acc:'#1a1a1a'} stroke={isHl?'#00000033':'#000'} strokeWidth={1} rx={2}/>
+            <rect x={x} y={0.5} width={bw} height={bh} fill={isHl?col:'#1a1a1a'} stroke={isHl?'#00000033':'#000'} strokeWidth={1} rx={2}/>
             {!isHl&&<rect x={x+2} y={2} width={bw-4} height={bh*0.3} rx={1} fill="rgba(255,255,255,0.08)"/>}
             {isHl&&<text x={x+bw/2} y={bh-6} textAnchor="middle" dominantBaseline="auto" fill="#fff"
               fontSize={Math.max(6,Math.min(10,Math.round(ww*0.26)))} fontWeight="800"
@@ -186,12 +222,25 @@ const ChordCard = ({ keyObj, chordType, inversion, preferFlat, accent }) => {
   const suffix={major:'',minor:'m',sus2:'sus2',sus4:'sus4',maj7:'maj7',min7:'m7',dom7:'7',dim7:'°7',hdim7:'ø7'}[chordType];
   const base=keyObj.display,needsM=(suffix==='m'||suffix.startsWith('m'))&&base.endsWith('m');
   const chordName=needsM?`${base}${suffix.slice(1)}`:`${base}${suffix}`;
+  const noteColors = getNoteColors(keyObj.root, formula);
+  const legend = getRoleLegend(formula);
+
   return (
     <div style={{marginBottom:24}}>
       <p style={{textAlign:'center',fontSize:15,color:'#333',marginBottom:6,fontWeight:500}}>
         {chordName}  —  {INV_NAMES[inversion]}
       </p>
-      <Piano midiNotes={midiNotes} rootPc={rootPc} preferFlat={preferFlat} accent={accent}/>
+      <Piano midiNotes={midiNotes} rootPc={rootPc} preferFlat={preferFlat}
+        accent={accent} noteColors={noteColors}/>
+      {/* Role legend */}
+      <div style={{display:'flex',justifyContent:'center',gap:10,marginTop:7,flexWrap:'wrap'}}>
+        {legend.map((l,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:4}}>
+            <div style={{width:10,height:10,borderRadius:2,background:l.color,flexShrink:0}}/>
+            <span style={{fontSize:10,color:'#888',fontWeight:600}}>{l.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -429,6 +478,7 @@ const App = () => {
   const [tweaksOpen,setTweaksOpen]=useState(false);
   const [showQuiz,setShowQuiz]=useState(false);
   const [showSong,setShowSong]=useState(false);
+  const [showApiKey,setShowApiKey]=useState(false);
 
   useEffect(()=>{document.documentElement.style.setProperty('--accent',tweaks.accentColor);},[tweaks.accentColor]);
 
@@ -458,9 +508,10 @@ const App = () => {
         ? <KeyPage keyObj={selKey} isMinor={isMinor} accent={accent} onBack={()=>nav('circle',selKey,isMinor)} onNavigate={(k,m)=>nav('key',k,m)}/>
         : <CircleOfFifths accent={accent} onSelectKey={(k,m)=>nav('key',k,m)}/>
       }
-      <AIFloatingBar onQuiz={()=>setShowQuiz(true)} onSong={()=>setShowSong(true)}/>
+      <AIFloatingBar onQuiz={()=>setShowQuiz(true)} onSong={()=>setShowSong(true)} onKey={()=>setShowApiKey(true)}/>
       {showQuiz&&<QuizModal onClose={()=>setShowQuiz(false)}/>}
       {showSong&&<SongDecoderModal onClose={()=>setShowSong(false)}/>}
+      {showApiKey&&<APIKeyModal onClose={()=>setShowApiKey(false)}/>}
       {tweaksOpen&&(
         <div style={{position:'fixed',bottom:20,right:20,zIndex:9999,background:'#fff',border:'1.5px solid #ddd',borderRadius:12,padding:'16px 18px',width:210,boxShadow:'0 8px 32px rgba(0,0,0,0.14)',fontFamily:'sans-serif'}}>
           <p style={{fontWeight:700,color:'#1a1a1a',marginBottom:12,fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase'}}>Tweaks</p>
