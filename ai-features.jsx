@@ -710,6 +710,7 @@ function AIFloatingBar({ onQuiz, onSong, onKey }) {
     <div style={{position:'fixed',bottom:20,left:'50%',transform:'translateX(-50%)',display:'flex',gap:8,zIndex:500,background:'#fff',border:'1.5px solid #ffe0b2',borderRadius:30,padding:'8px 14px',boxShadow:'0 4px 20px rgba(255,128,0,0.18)',whiteSpace:'nowrap'}}>
       <button onClick={onQuiz} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>🎵 Key Quiz</button>
       <button onClick={onSong} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>🔍 Song Decoder</button>
+      <a href="score-analyser.html" style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',borderRadius:20,background:ORANGE,border:`1px solid ${ORANGE}`,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',textDecoration:'none'}} title="Upload a score, get full chord analysis">📄 Score Analyser</a>
       <button onClick={onKey} style={{display:'flex',alignItems:'center',gap:4,padding:'6px 10px',borderRadius:20,background: hasKey?'#e8f5e9':'#fff8f0',border:`1px solid ${hasKey?'#4caf50':ORANGE}`,color:hasKey?'#2e7d32':ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}} title={hasKey?'API key saved':'Set API key for AI features'}>
         🔑{hasKey ? ' ✓' : ''}
       </button>
