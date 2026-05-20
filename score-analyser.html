@@ -351,7 +351,7 @@ input.ci:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-tint
   <header class="topbar">
     <div class="topbar-row">
       <div class="brand">
-        <button class="back-btn" onclick="window.location.href='Circle Of Fifths App.html'" title="Back to Circle of Fifths">
+        <button class="back-btn" onclick="window.location.href='index.html'" title="Back to Circle of Fifths">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.8"/>
             <circle cx="10" cy="10" r="4.2" stroke="currentColor" stroke-width="1.4"/>
@@ -792,6 +792,52 @@ function acceptConfirm(){
 function escapeHTML(s){ if(s===undefined||s===null) return ''; return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]); }
 function escapeAttr(s){ if(s===undefined||s===null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 
+/* ── Strip lyrics & decoration from extracted PDF text ──────────────────
+   Cuts ~30–60% of tokens on lyric-heavy lead sheets by keeping only
+   lines that contain chord symbols, section labels, or structural markers.
+*/
+function preprocessChordText(text){
+  // Chord pattern: A-G, optional accidental, optional quality/extension, optional slash bass
+  // Examples: C, Cm, Cmaj7, F#dim, Bbm7b5, G/B, C13, Csus4
+  const CHORD_RE = /^[A-G][#b]?(?:m|maj|M|min|mi|dim|aug|°|o|ø|sus[24]?|add[0-9]*)*[0-9]*(?:[#b]?[0-9]+)*(?:\/[A-G][#b]?)?$/;
+
+  // Structural markers to always preserve
+  const STRUCT_RE = /\b(verse|chorus|bridge|intro|outro|coda|pre.?chorus|refrain|hook|interlude|tag|solo|break|repeat|segno|fine|d\.c\.|d\.s\.|to\s+coda|bar\s+\d|measure|time\s*sig|key\s*sig|tempo|section|head|theme|riff|vamp|ending)/i;
+
+  // Always-drop patterns (footers, copyrights, URLs, page numbers)
+  const DROP_RE = /^(page\s*\d+|copyright|©|all rights reserved|printed|engraved|transcribed|arranged by|www\.|https?:|score|\d+\s+of\s+\d+)/i;
+
+  const lines = text.split(/\r?\n/);
+  const kept = [];
+
+  for(let line of lines){
+    const trimmed = line.trim();
+    if(!trimmed){ kept.push(''); continue; }
+    if(DROP_RE.test(trimmed)) continue;
+
+    // Tokenize on whitespace and common chord separators (·, |, em-dash, bullet)
+    const tokens = trimmed.split(/[\s|·•▪◦—–]+/).filter(Boolean);
+    let chordCount = 0;
+    tokens.forEach(t => {
+      const clean = t.replace(/[.,;:!?\)\]\}]+$/, '').replace(/^[.,;:!?\(\[\{]+/, '');
+      if(CHORD_RE.test(clean)) chordCount++;
+    });
+
+    // Keep if line has any chord token, OR is a structural label, OR a short ALL-CAPS header
+    if(chordCount > 0
+       || STRUCT_RE.test(trimmed)
+       || (trimmed.length <= 40 && /^[A-Z][A-Z0-9\s\-:.,'&]+$/.test(trimmed))
+       || /^\d+[\.\):]?$/.test(trimmed)         // bar numbers alone
+       || /^\d+\s*\/\s*\d+$/.test(trimmed)){    // time signatures
+      kept.push(trimmed);
+    }
+    // else: drop as lyric/decoration
+  }
+
+  // Collapse runs of blank lines
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 /* ── PDF text extraction ── */
 async function extractPDFText(file){
   const pdfjsLib = window['pdfjs-dist/build/pdf'];
@@ -847,6 +893,14 @@ async function analyseFile(file){
       try { pdfText = await extractPDFText(file); } catch(e){ pdfText = ''; }
       pdfText = pdfText.replace(/♭/g, 'b').replace(/♯/g, '#').replace(/𝄫/g, 'bb').replace(/𝄪/g, '##');
       if(pdfText.length >= 30){
+        // Strip lyrics & decoration to reduce token cost
+        const beforeLen = pdfText.length;
+        const filtered = preprocessChordText(pdfText);
+        const afterLen = filtered.length;
+        const savedPct = Math.round((1 - afterLen / Math.max(beforeLen,1)) * 100);
+        // Safety net: if filter killed too much (>90%), it probably mis-classified — fall back to raw text
+        pdfText = (afterLen < 30 || savedPct > 90) ? pdfText : filtered;
+        console.log(`Score Analyser: PDF text ${beforeLen} → ${pdfText.length} chars (${savedPct}% reduction)`);
         userText = 'Below is text extracted from a music chord chart or score PDF. Analyse it and return ONLY valid JSON matching this schema:\n' + JSON_SCHEMA + RULES + '\n\nExtracted score text:\n' + pdfText;
       } else {
         document.getElementById('loadMsg').textContent = 'No text found — using vision…';

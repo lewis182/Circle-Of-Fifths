@@ -328,29 +328,30 @@ function QuizModal({ onClose }) {
   const { result, loading, needsKey, run } = useAI();
 
   const TOPICS = [
-    'modal theory — the differences between Dorian, Phrygian, Lydian, Mixolydian and Aeolian, including their characteristic intervals',
-    'circle of fifths relationships — which keys share key signatures and why dominant/tonic relationships matter',
-    'relative major and minor keys — how to identify the relative key and what musical connection they share',
-    'key signatures — how many sharps or flats a given major or minor key has and the pattern behind it',
-    'diatonic chords — what chord quality appears on each scale degree in major and minor keys',
-    'enharmonic equivalents — when two keys with different names contain the same pitches and why this matters',
-    'the characteristic notes that define each mode — e.g. the raised 4th in Lydian, the flatted 7th in Mixolydian',
-    'secondary dominants and how they create tension between related keys',
-    'parallel vs relative modes — the difference between C Dorian and D Dorian',
+    'naming the notes of a major scale in keys with up to three sharps or flats (e.g. what are the notes of D major? G major? F major?)',
+    'major key signatures with up to three sharps or flats — which sharps or flats belong to which key (e.g. how many sharps in A major? what flats are in E♭ major?)',
+    'identifying the tonic, dominant, and subdominant note in a given major key',
+    'the relative minor of a major key (and vice versa) — how to find it from the key signature',
+    'building a simple major triad on a given root (e.g. what are the three notes of G major triad?)',
+    'the pattern of whole and half steps in a major scale (W-W-H-W-W-W-H) and using it to spell a scale',
+    'identifying simple intervals within a major scale — 2nd, 3rd, 4th, 5th, 6th, 7th, octave (number only, not yet quality)',
+    'reading basic note names on the treble or bass clef within a given key',
+    'sharps and flats — how they raise or lower a note by a semitone, and naming sharpened or flattened notes',
+    'the order of sharps (F C G D A E B) and the order of flats (B E A D G C F) as they appear in key signatures',
   ];
 
   const generate = () => {
     setSelected(null); setQuestion(null);
     const topic = TOPICS[Math.floor(Math.random()*TOPICS.length)];
-    run(`Create a challenging intermediate music theory question about: ${topic}.
-The question should require genuine understanding of relationships, not just memorisation.
+    run(`Create a Grade 1–2 standard music theory question (ABRSM / Trinity level — for beginners learning their first major scales, key signatures, and intervals) about: ${topic}.
+Keep the question concrete and factual — a single right answer, not a relationship/comparison question. Use everyday musical language, avoid jargon like "tonicization", "modal interchange", "secondary dominant", "enharmonic", "diatonic" etc.
 Return ONLY this format with NO extra text:
-Q: [the question]
-A: [correct answer]
-B: [plausible wrong answer]
-C: [plausible wrong answer]
-D: [plausible wrong answer]
-E: [explanation of why A is correct, why the others are wrong, and the underlying concept]`);
+Q: [the question — one sentence]
+A: [correct answer — short, often just a note name or number]
+B: [plausible wrong answer at the same level]
+C: [plausible wrong answer at the same level]
+D: [plausible wrong answer at the same level]
+E: [a one-sentence explanation a beginner can understand — no jargon]`);
   };
 
   useEffect(() => { generate(); }, []);
@@ -374,7 +375,7 @@ E: [explanation of why A is correct, why the others are wrong, and the underlyin
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}>
       <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'22px',width:'100%',maxWidth:440,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
-          <AIPill label="KEY RELATIONSHIPS QUIZ"/>
+          <AIPill label="MUSIC THEORY QUIZ"/>
           <button onClick={onClose} style={{marginLeft:'auto',background:'none',border:'none',color:'#aaa',cursor:'pointer',fontSize:22}}>×</button>
         </div>
         {showKey && <APIKeyModal onClose={()=>setShowKey(false)}/>}
@@ -692,8 +693,6 @@ function AITabContent({ keyObj, isMinor, relativeKey }) {
   const divider = <div style={{height:1,background:'#f0ebe4',margin:'4px 0 20px'}}/>;
   return (
     <div style={{padding:'20px 16px 60px',maxWidth:760,margin:'0 auto'}}>
-      <ProgressionPanel keyDisplay={keyObj.display} isMinor={isMinor}/>
-      {divider}
       <HarmonyAnalyser keyDisplay={keyObj.display} isMinor={isMinor}/>
       {divider}
       <PracticePathPanel currentKey={keyObj.display} isMinor={isMinor}/>

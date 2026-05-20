@@ -1,20 +1,23 @@
 // Circle of Fifths — Service Worker
 // Caches all app files for full offline support on iPad
 
-const CACHE_NAME = 'cof-app-v1';
+const CACHE_NAME = 'cof-app-v2';
 const ASSETS = [
   './',
   './index.html',
-  './Circle Of Fifths App.html',
+  './score-analyser.html',
   './ai-features.jsx',
   './icon-192.png',
   './icon-512.png',
   './icon-180.png',
+  './icon.svg',
   './manifest.json',
   // CDN scripts — cache on first fetch
   'https://unpkg.com/react@18.3.1/umd/react.development.js',
   'https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js',
   'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
 ];
 
 // Install: pre-cache local assets

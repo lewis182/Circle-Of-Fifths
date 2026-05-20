@@ -3,105 +3,735 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="CoF Chords">
-<meta name="theme-color" content="#ff8000">
-<meta name="description" content="Interactive circle of fifths with chord charts, scales, modes and AI teaching tools for piano.">
-
 <title>Circle of Fifths — Chord Charts</title>
-
-<!-- PWA icons -->
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-<link rel="manifest" href="manifest.json">
-
-<!-- Splash screen colour for iPad -->
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="ai-features.jsx"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body {
-    height: 100%;
-    background: #f0ebe4;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    overflow: hidden;
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body,#root { height:100%; }
+  body { background:#f0ebe4; font-family:'Helvetica Neue',Arial,sans-serif; -webkit-tap-highlight-color:transparent; }
+  :root { --accent:#ff8000; }
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:#f0ebe4; }
+  ::-webkit-scrollbar-thumb { background:#c8b8a8; border-radius:3px; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;} }
+  .fade-up { animation:fadeUp 0.2s ease both; }
+  .chord-tab {
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    gap:2px;min-width:50px;height:52px;padding:0 8px;
+    border-radius:10px;border:2px solid #ddd;background:#fff;
+    cursor:pointer;transition:all 0.15s;color:#555;touch-action:manipulation;
   }
-  #splash {
-    position: fixed; inset: 0;
-    background: #f0ebe4;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 20px; z-index: 9999;
-    transition: opacity 0.4s ease;
+  .chord-tab:hover { border-color:var(--accent);color:var(--accent); }
+  .chord-tab.active { border-color:var(--accent);background:var(--accent);color:#fff; }
+  .chord-tab .tab-icon { font-size:14px;font-weight:800;line-height:1; }
+  .chord-tab .tab-label { font-size:7.5px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap; }
+  .rel-btn {
+    display:inline-flex;align-items:center;gap:5px;padding:5px 11px 5px 9px;
+    border-radius:20px;border:1.5px solid var(--accent);background:transparent;
+    color:var(--accent);font-size:11px;font-weight:700;font-family:inherit;
+    cursor:pointer;transition:all 0.15s;white-space:nowrap;touch-action:manipulation;
   }
-  #splash.hidden { opacity: 0; pointer-events: none; }
-  #splash svg { width: 120px; height: 120px; }
-  #splash h1 {
-    font-family: Georgia, serif;
-    font-size: 22px; font-weight: 400;
-    letter-spacing: 0.2em; color: #1a1a1a;
-    text-transform: uppercase;
+  .rel-btn:hover { background:var(--accent);color:#fff; }
+  .back-btn {
+    display:flex;align-items:center;justify-content:center;
+    width:44px;height:44px;border-radius:50%;border:2px solid #ddd;
+    background:#fff;cursor:pointer;transition:all 0.15s;color:#888;flex-shrink:0;touch-action:manipulation;
   }
-  #splash p { font-size: 12px; color: #aaa; letter-spacing: 0.1em; }
-  iframe {
-    position: fixed; inset: 0;
-    width: 100%; height: 100%;
-    border: none;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-  }
-  iframe.ready { opacity: 1; }
+  .back-btn:hover { border-color:var(--accent);color:var(--accent); }
+  .key-header { position:sticky;top:0;z-index:100;background:#fff;border-bottom:2px solid #f0ebe4;padding:10px 16px; }
+  .key-header-row1 { display:flex;align-items:center;gap:12px;flex-wrap:wrap; }
+  .key-header-row2 { display:flex;align-items:center;gap:6px;margin-top:8px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch; }
+  .key-header-row2::-webkit-scrollbar { display:none; }
+  .cof-seg { cursor:pointer; }
 </style>
 </head>
 <body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const ORANGE = '#ff8000';
 
-<!-- Splash screen -->
-<div id="splash">
-  <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-    <rect width="120" height="120" rx="26" fill="#fff"/>
-    <circle cx="60" cy="60" r="50" fill="none" stroke="#ff8000" stroke-width="7"/>
-    <circle cx="60" cy="60" r="35" fill="none" stroke="#e8e0d8" stroke-width="4"/>
-    <circle cx="60" cy="60" r="20" fill="#f7f4f0" stroke="#e0d8d0" stroke-width="2"/>
-    <text x="60" y="68" text-anchor="middle" font-size="24" font-family="Georgia,serif" fill="#ff8000">♩</text>
-    <text x="60" y="17"  text-anchor="middle" font-size="9" font-weight="900" font-family="Georgia,serif" fill="#1a1a1a">C</text>
-    <text x="85" y="25"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">G</text>
-    <text x="97" y="47"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">D</text>
-    <text x="97" y="73"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">A</text>
-    <text x="85" y="95"  text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">E</text>
-    <text x="60" y="107" text-anchor="middle" font-size="8" font-weight="700" font-family="Georgia,serif" fill="#555">B</text>
-    <text x="35" y="95"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">F♯</text>
-    <text x="23" y="73"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">D♭</text>
-    <text x="23" y="47"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">A♭</text>
-    <text x="35" y="25"  text-anchor="middle" font-size="7" font-weight="700" font-family="Georgia,serif" fill="#555">E♭</text>
-  </svg>
-  <h1>Circle of Fifths</h1>
-  <p>Loading chord charts…</p>
-</div>
+// ── KEY DATA ─────────────────────────────────────────────────────────────────
+const COF_MAJOR = [
+  { id:'C',  display:'C',    root:0,  sharps:0  },
+  { id:'G',  display:'G',    root:7,  sharps:1  },
+  { id:'D',  display:'D',    root:2,  sharps:2  },
+  { id:'A',  display:'A',    root:9,  sharps:3  },
+  { id:'E',  display:'E',    root:4,  sharps:4  },
+  { id:'B',  display:'B',    root:11, sharps:5  },
+  { id:'Gb', display:'F♯/G♭',root:6,  sharps:6  },
+  { id:'Db', display:'D♭',   root:1,  sharps:-5 },
+  { id:'Ab', display:'A♭',   root:8,  sharps:-4 },
+  { id:'Eb', display:'E♭',   root:3,  sharps:-3 },
+  { id:'Bb', display:'B♭',   root:10, sharps:-2 },
+  { id:'F',  display:'F',    root:5,  sharps:-1 },
+];
+const COF_MINOR = [
+  { id:'Am',  display:'Am',  root:9,  angle:0   },
+  { id:'Em',  display:'Em',  root:4,  angle:30  },
+  { id:'Bm',  display:'Bm',  root:11, angle:60  },
+  { id:'Fsm', display:'F♯m', root:6,  angle:90  },
+  { id:'Csm', display:'C♯m', root:1,  angle:120 },
+  { id:'Gsm', display:'G♯m', root:8,  angle:150 },
+  { id:'Ebm', display:'E♭m', root:3,  angle:180 },
+  { id:'Bbm', display:'B♭m', root:10, angle:210 },
+  { id:'Fm',  display:'Fm',  root:5,  angle:240 },
+  { id:'Cm',  display:'Cm',  root:0,  angle:270 },
+  { id:'Gm',  display:'Gm',  root:7,  angle:300 },
+  { id:'Dm',  display:'Dm',  root:2,  angle:330 },
+];
 
-<!-- App -->
-<iframe id="app" src="Circle Of Fifths App.html" title="Circle of Fifths Chord Charts"></iframe>
+function getRelative(keyObj, isMinor) {
+  if (isMinor) { const r=(keyObj.root+3)%12; return {key:COF_MAJOR.find(k=>k.root===r),isMinor:false}; }
+  else         { const r=(keyObj.root+9)%12; return {key:COF_MINOR.find(k=>k.root===r),isMinor:true};  }
+}
 
-<script>
-  // Register service worker for offline PWA support
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('SW registered:', reg.scope))
-        .catch(err => console.log('SW registration failed:', err));
-    });
-  }
+// ── MUSIC DATA ───────────────────────────────────────────────────────────────
+const FORMULAS = {
+  major:[0,4,7],minor:[0,3,7],sus2:[0,2,7],sus4:[0,5,7],
+  maj7:[0,4,7,11],min7:[0,3,7,10],dom7:[0,4,7,10],dim7:[0,3,6,9],hdim7:[0,3,6,10],
+};
+const SCALE_FORMULAS = {
+  major:           {label:'Major Scale',               intervals:[0,2,4,5,7,9,11]},
+  majorPenta:      {label:'Major Pentatonic',          intervals:[0,2,4,7,9]},
+  majorBlues:      {label:'Major Blues',               intervals:[0,2,3,4,7,9]},
+  naturalMinor:    {label:'Natural Minor Scale',       intervals:[0,2,3,5,7,8,10]},
+  harmonicMinor:   {label:'Harmonic Minor Scale',      intervals:[0,2,3,5,7,8,11]},
+  melodicMinorAsc: {label:'Melodic Minor (Ascending)', intervals:[0,2,3,5,7,9,11]},
+  melodicMinorDesc:{label:'Melodic Minor (Descending)',intervals:[0,2,3,5,7,8,10]},
+  minorPenta:      {label:'Minor Pentatonic',          intervals:[0,3,5,7,10]},
+  minorBlues:      {label:'Minor Blues',               intervals:[0,3,5,6,7,10]},
+};
 
-  // Hide splash once iframe loads
-  const iframe = document.getElementById('app');
-  const splash = document.getElementById('splash');
-  iframe.addEventListener('load', () => {
-    setTimeout(() => {
-      iframe.classList.add('ready');
-      splash.classList.add('hidden');
-    }, 300);
+// Modes data
+const MODES = [
+  {name:'Ionian',     degree:0, intervals:[0,2,4,5,7,9,11], feel:'Bright · major · resolved',      songs:'Classical, pop anthems',     color:'#ff9800'},
+  {name:'Dorian',     degree:1, intervals:[0,2,3,5,7,9,10], feel:'Minor · soulful · jazz/blues',   songs:'Scarborough Fair, Oye Como Va',color:'#43a047'},
+  {name:'Phrygian',   degree:2, intervals:[0,1,3,5,7,8,10], feel:'Dark · Spanish · flamenco',      songs:'White Zombie, Andalusian music',color:'#8e24aa'},
+  {name:'Lydian',     degree:3, intervals:[0,2,4,6,7,9,11], feel:'Dreamy · floaty · ethereal',     songs:'The Simpsons theme, Misty Mountain',color:'#1e88e5'},
+  {name:'Mixolydian', degree:4, intervals:[0,2,4,5,7,9,10], feel:'Bluesy · dominant · rock',       songs:'Norwegian Wood, Sweet Home Chicago',color:'#e53935'},
+  {name:'Aeolian',    degree:5, intervals:[0,2,3,5,7,8,10], feel:'Sad · natural minor · dark',     songs:'Stairway to Heaven, Nothing Else Matters',color:'#546e7a'},
+  {name:'Locrian',    degree:7, intervals:[0,1,3,5,6,8,10], feel:'Dissonant · unstable · tense',   songs:'Rare — some prog metal, YYZ',  color:'#6d4c41'},
+];
+const MAJOR_SCALE_IV = [0,2,4,5,7,9,11];
+
+const NOTE_FLAT  = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
+const NOTE_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const noteName = (pc,flat=true) => flat ? NOTE_FLAT[pc] : NOTE_SHARP[pc];
+
+// ── NOTE ROLE COLORS ─────────────────────────────────────────────────────────
+// Each interval in a chord has a fixed role color regardless of inversion
+const ROLE_COLORS = {
+  0:  '#ff8000', // Root       — orange
+  2:  '#8bc34a', // Maj 2nd    — lime  (Sus2)
+  3:  '#42a5f5', // Min 3rd    — blue
+  4:  '#1976d2', // Maj 3rd    — dark blue
+  5:  '#ff7043', // Perf 4th   — coral (Sus4)
+  6:  '#ab47bc', // Dim 5th    — purple
+  7:  '#26a69a', // Perf 5th   — teal
+  9:  '#ec407a', // Dim 7th/6  — pink
+  10: '#7e57c2', // Min 7th    — deep purple
+  11: '#3949ab', // Maj 7th    — indigo
+};
+const ROLE_LABELS = {
+  0:'Root', 2:'2nd', 3:'♭3rd', 4:'3rd', 5:'4th', 6:'♭5th', 7:'5th', 9:'°7', 10:'♭7', 11:'7'
+};
+
+function getNoteColors(root, formula) {
+  const map = {};
+  formula.forEach(iv => {
+    const pc = (root + iv) % 12;
+    map[pc] = ROLE_COLORS[iv] || '#ff8000';
   });
+  return map;
+}
+
+function getRoleLegend(formula) {
+  return formula.map(iv => ({ color: ROLE_COLORS[iv]||'#ff8000', label: ROLE_LABELS[iv]||'' }));
+}
+
+function getChordMidi(root,formula,inv) {
+  let notes=formula.map(iv=>60+root+iv);
+  for(let i=0;i<inv;i++){const mn=Math.min(...notes);notes[notes.indexOf(mn)]+=12;}
+  const maxN=Math.max(...notes); if(maxN>84)notes=notes.map(n=>n-Math.ceil((maxN-84)/12)*12);
+  const minN=Math.min(...notes); if(minN<60)notes=notes.map(n=>n+Math.ceil((60-minN)/12)*12);
+  return notes.sort((a,b)=>a-b);
+}
+function getScaleMidi(root,intervals) {
+  const CENTER=72; let bestStart=null,bestDist=Infinity;
+  for(let s=-1;s<=2;s++){const start=60+root+s*12,end=start+12;
+    if(start>=60&&end<=84){const d=Math.abs((start+end)/2-CENTER);
+      if(d<bestDist||(d===bestDist&&(bestStart===null||start<bestStart))){bestDist=d;bestStart=start;}}}
+  if(!bestStart)bestStart=60+root;
+  return [...intervals.map(iv=>bestStart+iv),bestStart+12].filter(n=>n>=60&&n<=84);
+}
+
+// ── PIANO ─────────────────────────────────────────────────────────────────────
+const WHITE_OFFSETS=[0,2,4,5,7,9,11,12,14,16,17,19,21,23,24];
+const BLACK_LEFT={1:0,3:1,6:3,8:4,10:5,13:7,15:8,18:10,20:11,22:12};
+
+// noteColors: { pc → color } — if provided, each note gets its role color
+// accent: fallback single color for scales
+const Piano = ({ midiNotes, rootPc, accent, preferFlat=true, noteColors=null }) => {
+  const ref=useRef(null); const [w,setW]=useState(680);
+  useEffect(()=>{
+    if(!ref.current)return;
+    const ob=new ResizeObserver(e=>setW(Math.floor(e[0].contentRect.width)));
+    ob.observe(ref.current); return()=>ob.disconnect();
+  },[]);
+  const nW=WHITE_OFFSETS.length,ww=w/nW,wh=Math.round(ww*3.9);
+  const bw=Math.round(ww*0.6),bh=Math.round(wh*0.62),START=60;
+  const keyColor = (pc) => noteColors ? (noteColors[pc] || accent||ORANGE) : (accent||ORANGE);
+  const blackKeys=Object.entries(BLACK_LEFT).map(([off,li])=>({off:+off,midi:START+(+off),x:(li+1)*ww-bw/2}));
+  return (
+    <div ref={ref} style={{width:'100%'}}>
+      <svg width={w} height={wh+2} style={{display:'block',border:'1.5px solid #ccc',borderRadius:6,background:'#fff'}}>
+        {WHITE_OFFSETS.map((off,i)=>{
+          const midi=START+off,isHl=midiNotes.includes(midi),pc=midi%12;
+          const col=keyColor(pc);
+          return(<g key={off}>
+            <rect x={i*ww+0.5} y={0.5} width={ww-1} height={wh-1} fill={isHl?col:'#fff'} stroke="#ccc" strokeWidth={1} rx={2}/>
+            {isHl&&<text x={i*ww+ww/2} y={wh-9} textAnchor="middle" dominantBaseline="auto" fill="#fff"
+              fontSize={Math.max(8,Math.min(13,Math.round(ww*0.36)))} fontWeight="800"
+              fontFamily="Helvetica Neue,Arial,sans-serif" style={{pointerEvents:'none'}}>{noteName(pc,preferFlat)}</text>}
+          </g>);
+        })}
+        {blackKeys.map(({off,midi,x})=>{
+          const isHl=midiNotes.includes(midi),pc=midi%12;
+          const col=keyColor(pc);
+          return(<g key={off}>
+            <rect x={x} y={0.5} width={bw} height={bh} fill={isHl?col:'#1a1a1a'} stroke={isHl?'#00000033':'#000'} strokeWidth={1} rx={2}/>
+            {!isHl&&<rect x={x+2} y={2} width={bw-4} height={bh*0.3} rx={1} fill="rgba(255,255,255,0.08)"/>}
+            {isHl&&<text x={x+bw/2} y={bh-6} textAnchor="middle" dominantBaseline="auto" fill="#fff"
+              fontSize={Math.max(6,Math.min(10,Math.round(ww*0.26)))} fontWeight="800"
+              fontFamily="Helvetica Neue,Arial,sans-serif" style={{pointerEvents:'none'}}>{noteName(pc,preferFlat)}</text>}
+          </g>);
+        })}
+      </svg>
+    </div>
+  );
+};
+
+// ── CHORD CARD ────────────────────────────────────────────────────────────────
+const INV_NAMES=['Root Position','1st Inversion','2nd Inversion','3rd Inversion'];
+const ChordCard = ({ keyObj, chordType, inversion, preferFlat, accent }) => {
+  const formula=FORMULAS[chordType],midiNotes=getChordMidi(keyObj.root,formula,inversion),rootPc=keyObj.root%12;
+  const suffix={major:'',minor:'m',sus2:'sus2',sus4:'sus4',maj7:'maj7',min7:'m7',dom7:'7',dim7:'°7',hdim7:'ø7'}[chordType];
+  const base=keyObj.display,needsM=(suffix==='m'||suffix.startsWith('m'))&&base.endsWith('m');
+  const chordName=needsM?`${base}${suffix.slice(1)}`:`${base}${suffix}`;
+  const noteColors = getNoteColors(keyObj.root, formula);
+  const legend = getRoleLegend(formula);
+
+  return (
+    <div style={{marginBottom:24}}>
+      <p style={{textAlign:'center',fontSize:15,color:'#333',marginBottom:6,fontWeight:500}}>
+        {chordName}  —  {INV_NAMES[inversion]}
+      </p>
+      <Piano midiNotes={midiNotes} rootPc={rootPc} preferFlat={preferFlat}
+        accent={accent} noteColors={noteColors}/>
+      {/* Role legend */}
+      <div style={{display:'flex',justifyContent:'center',gap:10,marginTop:7,flexWrap:'wrap'}}>
+        {legend.map((l,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:4}}>
+            <div style={{width:10,height:10,borderRadius:2,background:l.color,flexShrink:0}}/>
+            <span style={{fontSize:10,color:'#888',fontWeight:600}}>{l.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── SCALE CARD ────────────────────────────────────────────────────────────────
+const ScaleCard = ({ keyObj, scaleKey, preferFlat, accent }) => {
+  const {label,intervals}=SCALE_FORMULAS[scaleKey];
+  const midiNotes=getScaleMidi(keyObj.root,intervals),rootPc=keyObj.root%12;
+  const steps=[];
+  for(let i=0;i<intervals.length;i++){
+    const next=i+1<intervals.length?intervals[i+1]:intervals[0]+12;
+    const d=next-intervals[i]; steps.push(d===2?'W':d===1?'H':d===3?'W+H':`${d}`);
+  }
+  return (
+    <div style={{marginBottom:28}}>
+      <p style={{textAlign:'center',fontSize:15,color:'#333',marginBottom:4,fontWeight:500}}>{keyObj.display} {label}</p>
+      <p style={{textAlign:'center',fontSize:11,color:'#aaa',marginBottom:8,fontFamily:'monospace',letterSpacing:'0.1em'}}>{steps.join('  ·  ')}</p>
+      <Piano midiNotes={midiNotes} rootPc={rootPc} preferFlat={preferFlat} accent={accent}/>
+    </div>
+  );
+};
+
+// ── MODE CARD ─────────────────────────────────────────────────────────────────
+const ModeCard = ({ ionianRoot, mode, preferFlat, accent }) => {
+  // modal root = ionianRoot + scale degree offset
+  const modeRoot = (ionianRoot + MAJOR_SCALE_IV[mode.degree === 7 ? 6 : mode.degree]) % 12;
+  const midiNotes = getScaleMidi(modeRoot, mode.intervals);
+  const modeRootName = noteName(modeRoot, preferFlat);
+  const { result, loading, run } = useAI();
+  const [open, setOpen] = useState(false);
+
+  const handleAI = () => {
+    if (!open) run(`Explain the ${modeRootName} ${mode.name} mode in 3 sentences for an intermediate musician. Cover: its characteristic interval, how it differs from major/minor, and a specific musical context where it's used. No markdown.`);
+    setOpen(o=>!o);
+  };
+
+  return (
+    <div style={{marginBottom:28,borderLeft:`3px solid ${mode.color}`,paddingLeft:14}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+        <span style={{
+          background:mode.color,color:'#fff',
+          padding:'3px 10px',borderRadius:6,
+          fontSize:12,fontWeight:800,
+        }}>{mode.name}</span>
+        <span style={{fontSize:16,fontWeight:700,color:'#1a1a1a'}}>{modeRootName} {mode.name}</span>
+        <span style={{fontSize:11,color:'#aaa',fontStyle:'italic',marginLeft:'auto'}}>{mode.feel}</span>
+      </div>
+      <Piano midiNotes={midiNotes} rootPc={modeRoot} preferFlat={preferFlat} accent={mode.color}/>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:8}}>
+        <span style={{fontSize:11,color:'#bbb',fontStyle:'italic'}}>🎵 {mode.songs}</span>
+        <button onClick={handleAI} style={{
+          display:'flex',alignItems:'center',gap:4,
+          padding:'4px 10px',borderRadius:7,
+          border:`1px solid ${open?mode.color:'#e0e0e0'}`,
+          background:open?`${mode.color}18`:'#fafafa',
+          color:open?mode.color:'#aaa',fontSize:10,fontWeight:700,cursor:'pointer',
+        }}>✦ {open?'Hide':'Explore'}</button>
+      </div>
+      {open && <AIBlock loading={loading} compact>{result}</AIBlock>}
+    </div>
+  );
+};
+
+// Modes panel — derive ionianRoot from key + isMinor
+const ModesPanel = ({ keyObj, isMinor, preferFlat, accent }) => {
+  // For minor keys, ionianRoot = relative major root
+  const ionianRoot = isMinor ? (keyObj.root + 3) % 12 : keyObj.root;
+  const ionianName = noteName(ionianRoot, preferFlat);
+  return (
+    <div style={{padding:'20px 16px 100px',maxWidth:760,margin:'0 auto'}}>
+      <p style={{fontSize:12,color:'#aaa',marginBottom:20,lineHeight:1.6}}>
+        All 7 modes derived from the <strong style={{color:'#333'}}>{ionianName} Major scale</strong>.
+        Each mode starts on a different degree, giving a unique colour to the same set of notes.
+      </p>
+      {MODES.map(mode => (
+        <ModeCard key={mode.name} ionianRoot={ionianRoot} mode={mode}
+          preferFlat={preferFlat} accent={accent}/>
+      ))}
+    </div>
+  );
+};
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+const MAJOR_TABS = [
+  {id:'triads', icon:'△',  label:'Triads',  chords:[{t:'major',i:0},{t:'major',i:1},{t:'major',i:2},{t:'sus2',i:0},{t:'sus4',i:0}]},
+  {id:'maj7',   icon:'M7', label:'Maj 7',   chords:[{t:'maj7',i:0},{t:'maj7',i:1},{t:'maj7',i:2},{t:'maj7',i:3}]},
+  {id:'dom7',   icon:'7',  label:'Dom 7',   chords:[{t:'dom7',i:0},{t:'dom7',i:1},{t:'dom7',i:2},{t:'dom7',i:3}]},
+  {id:'dim7',   icon:'°7', label:'Dim 7',   chords:[{t:'dim7',i:0},{t:'dim7',i:1},{t:'dim7',i:2},{t:'dim7',i:3}]},
+  {id:'scales', icon:'𝄞',  label:'Scales',  isScales:true, scales:['major','majorPenta','majorBlues']},
+  {id:'modes',  icon:'μ',  label:'Modes',   isModes:true},
+  {id:'prog',   icon:'→',  label:'Prog',    isProg:true},
+  {id:'ai',     icon:'✦',  label:'AI',      isAI:true},
+];
+const MINOR_TABS = [
+  {id:'triads', icon:'△',  label:'Triads',  chords:[{t:'minor',i:0},{t:'minor',i:1},{t:'minor',i:2}]},
+  {id:'min7',   icon:'m7', label:'Min 7',   chords:[{t:'min7',i:0},{t:'min7',i:1},{t:'min7',i:2},{t:'min7',i:3}]},
+  {id:'hdim7',  icon:'ø7', label:'m7♭5',    chords:[{t:'hdim7',i:0},{t:'hdim7',i:1},{t:'hdim7',i:2},{t:'hdim7',i:3}]},
+  {id:'dim7',   icon:'°7', label:'Dim 7',   chords:[{t:'dim7',i:0},{t:'dim7',i:1},{t:'dim7',i:2},{t:'dim7',i:3}]},
+  {id:'scales', icon:'𝄞',  label:'Scales',  isScales:true, scales:['naturalMinor','harmonicMinor','melodicMinorAsc','melodicMinorDesc','minorPenta','minorBlues']},
+  {id:'modes',  icon:'μ',  label:'Modes',   isModes:true},
+  {id:'prog',   icon:'→',  label:'Prog',    isProg:true},
+  {id:'ai',     icon:'✦',  label:'AI',      isAI:true},
+];
+
+// ── PROGRESSIONS DATA ────────────────────────────────────────────────────────
+// Each entry: roman numerals as the canonical progression, with degree (semitones from root) + chord quality.
+// Qualities: major, minor, dim, maj7, m7, dom7, dim7, hdim7
+const PROG_FORMULAS = {
+  major:[0,4,7], minor:[0,3,7], dim:[0,3,6],
+  maj7:[0,4,7,11], m7:[0,3,7,10], dom7:[0,4,7,10], dim7:[0,3,6,9], hdim7:[0,3,6,10],
+};
+const PROG_SUFFIX = { major:'', minor:'m', dim:'dim', maj7:'maj7', m7:'m7', dom7:'7', dim7:'°7', hdim7:'m7♭5' };
+
+const MAJOR_PROGRESSIONS = [
+  { name:'Pop / Rock',       roman:'I–V–vi–IV',        feel:'1990s–today anthem',  chords:[
+    {deg:0,q:'major',rn:'I'},{deg:7,q:'major',rn:'V'},{deg:9,q:'minor',rn:'vi'},{deg:5,q:'major',rn:'IV'}]},
+  { name:'Blues / Country',  roman:'I–IV–V',           feel:'Three-chord foundation', chords:[
+    {deg:0,q:'major',rn:'I'},{deg:5,q:'major',rn:'IV'},{deg:7,q:'major',rn:'V'}]},
+  { name:'50s Progression',  roman:'I–vi–IV–V',        feel:'Doo-wop classic',     chords:[
+    {deg:0,q:'major',rn:'I'},{deg:9,q:'minor',rn:'vi'},{deg:5,q:'major',rn:'IV'},{deg:7,q:'major',rn:'V'}]},
+  { name:'Jazz ii–V–I',      roman:'ii7–V7–Imaj7',     feel:'Jazz cadence',        chords:[
+    {deg:2,q:'m7',rn:'ii'},{deg:7,q:'dom7',rn:'V'},{deg:0,q:'maj7',rn:'I'}]},
+  { name:'Jazz Turnaround',  roman:'Imaj7–vi7–ii7–V7', feel:'Back-to-I in jazz',   chords:[
+    {deg:0,q:'maj7',rn:'I'},{deg:9,q:'m7',rn:'vi'},{deg:2,q:'m7',rn:'ii'},{deg:7,q:'dom7',rn:'V'}]},
+];
+
+const MINOR_PROGRESSIONS = [
+  { name:'Minor Pop / Rock', roman:'i–VII–VI–VII',     feel:'Sad sing-along',      chords:[
+    {deg:0,q:'minor',rn:'i'},{deg:10,q:'major',rn:'VII'},{deg:8,q:'major',rn:'VI'},{deg:10,q:'major',rn:'VII'}]},
+  { name:'Minor Blues',      roman:'i–iv–V',           feel:'Standard minor blues (V is major — harmonic minor)', chords:[
+    {deg:0,q:'minor',rn:'i'},{deg:5,q:'minor',rn:'iv'},{deg:7,q:'major',rn:'V'}]},
+  { name:'Andalusian Cadence', roman:'i–VII–VI–V',    feel:'Spanish / flamenco (V major)', chords:[
+    {deg:0,q:'minor',rn:'i'},{deg:10,q:'major',rn:'VII'},{deg:8,q:'major',rn:'VI'},{deg:7,q:'major',rn:'V'}]},
+  { name:'Jazz ii°–V–i',     roman:'iim7♭5–V7–im7',    feel:'Minor jazz cadence',  chords:[
+    {deg:2,q:'hdim7',rn:'ii°'},{deg:7,q:'dom7',rn:'V'},{deg:0,q:'m7',rn:'i'}]},
+  { name:'Minor Turnaround', roman:'i7–VImaj7–ii°7–V7', feel:'Jazz minor back-to-i', chords:[
+    {deg:0,q:'m7',rn:'i'},{deg:8,q:'maj7',rn:'VI'},{deg:2,q:'hdim7',rn:'ii°'},{deg:7,q:'dom7',rn:'V'}]},
+];
+
+// Secondary dominants — V7 of each diatonic chord in a major key
+// (vii° has no secondary dominant — it's diminished, no functional tonicization)
+const SECONDARY_DOMINANTS = [
+  { rn:'V7/IV', deg:0,  q:'dom7', target:'IV', desc:'Approaches the IV chord' },
+  { rn:'V7/V',  deg:2,  q:'dom7', target:'V',  desc:'The key brightener', star:true },
+  { rn:'V7/vi', deg:4,  q:'dom7', target:'vi', desc:'Approaches the relative minor', star:true },
+  { rn:'V7/ii', deg:9,  q:'dom7', target:'ii', desc:'Approaches the supertonic' },
+  { rn:'V7/iii',deg:11, q:'dom7', target:'iii',desc:'Approaches the mediant' },
+];
+
+// Blues progressions — shown for major keys typically used for blues
+const BLUES_KEYS = new Set(['C','G','D','A','E','F','Bb','Eb']);
+const BLUES_PROGRESSIONS = [
+  { name:'12-bar blues (standard)', pattern:'I7 · I7 · I7 · I7 | IV7 · IV7 · I7 · I7 | V7 · IV7 · I7 · V7', chords:[
+    {deg:0,q:'dom7',rn:'I7'},{deg:5,q:'dom7',rn:'IV7'},{deg:7,q:'dom7',rn:'V7'}]},
+  { name:'Quick change', pattern:'I7 · IV7 · I7 · I7 | IV7 · IV7 · I7 · I7 | V7 · IV7 · I7 · V7', chords:[
+    {deg:0,q:'dom7',rn:'I7'},{deg:5,q:'dom7',rn:'IV7'},{deg:7,q:'dom7',rn:'V7'}]},
+  { name:'8-bar blues', pattern:'I7 · V7 · IV7 · I7', chords:[
+    {deg:0,q:'dom7',rn:'I7'},{deg:7,q:'dom7',rn:'V7'},{deg:5,q:'dom7',rn:'IV7'}]},
+  { name:'Jazz blues', pattern:'I7 · IV7 · I7 · V7 · ♭VII7 · I7', chords:[
+    {deg:0,q:'dom7',rn:'I7'},{deg:5,q:'dom7',rn:'IV7'},{deg:7,q:'dom7',rn:'V7'},{deg:10,q:'dom7',rn:'♭VII7'}]},
+];
+
+// Chord-name helpers
+function progChordName(root, deg, q, preferFlat){
+  const pc = ((root + deg) % 12 + 12) % 12;
+  const nm = preferFlat ? NOTE_FLAT[pc] : NOTE_SHARP[pc];
+  return nm + PROG_SUFFIX[q];
+}
+function progChordSpelling(root, deg, q, preferFlat){
+  const formula = PROG_FORMULAS[q];
+  const pc0 = ((root + deg) % 12 + 12) % 12;
+  return formula.map(iv => {
+    const pc = (pc0 + iv) % 12;
+    return preferFlat ? NOTE_FLAT[pc] : NOTE_SHARP[pc];
+  }).join(' · ');
+}
+
+// One chord card inside a progression row
+const ProgChordCard = ({ root, deg, q, rn, preferFlat, accent, kind='diatonic', target, star }) => {
+  const name = progChordName(root, deg, q, preferFlat);
+  const spelling = progChordSpelling(root, deg, q, preferFlat);
+  const borderLeft = kind==='secondary' ? `3px solid ${accent}`
+                   : kind==='blues'     ? `3px solid #6d4c41`
+                   : '1px solid #e8e0d8';
+  return (
+    <div style={{
+      flex:'1 1 0',minWidth:78,
+      background:'#fff',border:'1px solid #e8e0d8',borderLeft,
+      borderRadius:8,padding:'10px 11px',
+    }}>
+      <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:2}}>
+        <span style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1a1a1a',letterSpacing:'-0.01em',lineHeight:1.1}}>{name}</span>
+        {star && <span style={{color:accent,fontSize:11,fontWeight:700}}>★</span>}
+      </div>
+      <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.1em',color:'#888',marginBottom:3,fontFamily:'monospace'}}>{rn}{target?<span style={{color:accent}}>{` → ${target}`}</span>:null}</p>
+      <p style={{fontSize:10,color:'#aaa',fontFamily:'monospace',letterSpacing:'0.04em'}}>{spelling}</p>
+    </div>
+  );
+};
+
+// One progression block
+const ProgressionRow = ({ title, romanLabel, feel, root, chords, preferFlat, accent, kind='diatonic' }) => (
+  <div style={{marginBottom:18,background:'#fafaf6',border:'1px solid #e8e0d8',borderRadius:10,padding:'12px 14px'}}>
+    <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:10,marginBottom:8,flexWrap:'wrap'}}>
+      <div style={{display:'flex',alignItems:'baseline',gap:10,flexWrap:'wrap'}}>
+        <span style={{fontSize:13,fontWeight:700,color:'#1a1a1a'}}>{title}</span>
+        <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,letterSpacing:'0.1em',color:accent}}>{romanLabel}</span>
+      </div>
+      {feel && <span style={{fontSize:11,color:'#888',fontStyle:'italic'}}>{feel}</span>}
+    </div>
+    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+      {chords.map((c,i)=>(
+        <ProgChordCard key={i} root={root} deg={c.deg} q={c.q} rn={c.rn} preferFlat={preferFlat} accent={accent} kind={kind} target={c.target} star={c.star}/>
+      ))}
+    </div>
+  </div>
+);
+
+// Progressions panel — the new Prog tab
+const ProgressionsPanel = ({ keyObj, isMinor, preferFlat, accent }) => {
+  const [showSecondary, setShowSecondary] = useState(false);
+  const root = keyObj.root;
+  const progressions = isMinor ? MINOR_PROGRESSIONS : MAJOR_PROGRESSIONS;
+  const showBlues = !isMinor && BLUES_KEYS.has(keyObj.id);
+
+  // For minor keys, secondary dominants don't apply the same way (different functional set);
+  // PDFs only list them for major. Hide for minor.
+  const showSecondarySection = !isMinor;
+
+  return (
+    <div style={{maxWidth:760,margin:'0 auto',padding:'18px 16px 100px'}}>
+      {/* Common progressions */}
+      <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:'#aaa',marginBottom:12}}>
+        {isMinor ? 'Common minor progressions' : 'Common progressions'}
+      </p>
+      {progressions.map((p,i)=>(
+        <ProgressionRow key={i} title={p.name} romanLabel={p.roman} feel={p.feel}
+          root={root} chords={p.chords} preferFlat={preferFlat} accent={accent}/>
+      ))}
+
+      {/* Blues — only for blues-friendly major keys */}
+      {showBlues && (
+        <div style={{marginTop:28}}>
+          <p style={{fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:'#aaa',marginBottom:6}}>
+            Blues progressions
+          </p>
+          <p style={{fontSize:11,color:'#888',marginBottom:12,lineHeight:1.55}}>
+            Blues uses dominant 7ths everywhere — gives the genre its gritty sound.
+          </p>
+          {BLUES_PROGRESSIONS.map((p,i)=>(
+            <div key={i} style={{marginBottom:16,background:'#fafaf6',border:'1px solid #e8e0d8',borderLeft:'3px solid #6d4c41',borderRadius:10,padding:'12px 14px'}}>
+              <p style={{fontSize:13,fontWeight:700,color:'#1a1a1a',marginBottom:4}}>{p.name}</p>
+              <p style={{fontFamily:'monospace',fontSize:10,color:'#888',marginBottom:10,letterSpacing:'0.06em',lineHeight:1.5}}>{p.pattern}</p>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {p.chords.map((c,j)=>(
+                  <ProgChordCard key={j} root={root} deg={c.deg} q={c.q} rn={c.rn} preferFlat={preferFlat} accent={accent} kind='blues'/>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Secondary dominants — collapsible */}
+      {showSecondarySection && (
+        <div style={{marginTop:28}}>
+          <button onClick={()=>setShowSecondary(s=>!s)} style={{
+            display:'flex',alignItems:'center',gap:8,width:'100%',
+            background:'transparent',border:'none',cursor:'pointer',
+            padding:'8px 0',color:'#1a1a1a',fontFamily:'inherit',
+          }}>
+            <span style={{
+              display:'inline-flex',alignItems:'center',justifyContent:'center',
+              width:18,height:18,borderRadius:4,background:accent,color:'#fff',
+              fontSize:11,fontWeight:800,transition:'transform 0.15s',
+              transform:showSecondary?'rotate(90deg)':'rotate(0deg)',
+            }}>›</span>
+            <span style={{fontSize:10,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:'#aaa'}}>
+              Secondary dominants
+            </span>
+            <span style={{fontSize:11,color:'#aaa',fontStyle:'italic',marginLeft:'auto'}}>{showSecondary?'Hide':'Show'}</span>
+          </button>
+          {showSecondary && (
+            <div style={{paddingTop:8}}>
+              <p style={{fontSize:11,color:'#888',marginBottom:14,lineHeight:1.6}}>
+                Treat any diatonic chord as a temporary tonic. To find its dominant: go up a perfect 5th from its root and build a dom7. ★ marks the two most useful ones.
+              </p>
+              <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                {SECONDARY_DOMINANTS.map((s,i)=>(
+                  <ProgChordCard key={i} root={root} deg={s.deg} q={s.q} rn={s.rn}
+                    preferFlat={preferFlat} accent={accent} kind='secondary'
+                    target={s.target} star={s.star}/>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── COF ICON ──────────────────────────────────────────────────────────────────
+const CofMiniIcon = ({ onClick }) => (
+  <button className="back-btn" onClick={onClick} title="Circle of Fifths">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.8"/>
+      <circle cx="10" cy="10" r="4.2" stroke="currentColor" strokeWidth="1.4"/>
+      <circle cx="10" cy="10" r="1.4" fill="currentColor"/>
+      {[0,60,120,180,240,300].map((a,i)=>{const r=(a-90)*Math.PI/180;
+        return<line key={i} x1={10+5.5*Math.cos(r)} y1={10+5.5*Math.sin(r)} x2={10+7.6*Math.cos(r)} y2={10+7.6*Math.sin(r)} stroke="currentColor" strokeWidth="1.4"/>;
+      })}
+    </svg>
+  </button>
+);
+
+// ── KEY PAGE ──────────────────────────────────────────────────────────────────
+const KeyPage = ({ keyObj, isMinor, onBack, onNavigate, accent }) => {
+  const [activeTab, setActiveTab] = useState('triads');
+  const tabs = isMinor ? MINOR_TABS : MAJOR_TABS;
+  const tab  = tabs.find(t=>t.id===activeTab)||tabs[0];
+  const preferFlat = (keyObj.sharps||0) <= 0;
+  const {key:relKey, isMinor:relIsMinor} = getRelative(keyObj, isMinor);
+  const relLabel = relKey ? `${relKey.display} ${relIsMinor?'minor':'major'}` : null;
+
+  return (
+    <div style={{minHeight:'100vh',background:'#fff'}}>
+      <div className="key-header">
+        <div className="key-header-row1">
+          <CofMiniIcon onClick={onBack}/>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:46,height:46,borderRadius:'50%',background:accent,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <span style={{color:'#fff',fontWeight:900,fontSize:keyObj.display.length>2?13:keyObj.display.length>1?17:22,fontFamily:'Georgia,serif',lineHeight:1}}>{keyObj.display}</span>
+            </div>
+            <span style={{fontSize:20,fontWeight:700,letterSpacing:'0.18em',color:'#1a1a1a',textTransform:'uppercase'}}>C H O R D S</span>
+          </div>
+          {relKey && (
+            <button className="rel-btn" style={{'--accent':accent}} onClick={()=>onNavigate(relKey,relIsMinor)}>
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6h8M7 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              {relLabel}
+            </button>
+          )}
+        </div>
+        <div className="key-header-row2">
+          {tabs.map(t=>(
+            <button key={t.id} className={`chord-tab ${activeTab===t.id?'active':''}`}
+              style={activeTab===t.id?{borderColor:accent,background:accent}:{}}
+              onClick={()=>setActiveTab(t.id)}>
+              <span className="tab-icon">{t.icon}</span>
+              <span className="tab-label">{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="fade-up" key={activeTab}>
+        {tab.isAI
+          ? <AITabContent keyObj={keyObj} isMinor={isMinor} relativeKey={relKey}/>
+          : tab.isProg
+            ? <ProgressionsPanel keyObj={keyObj} isMinor={isMinor} preferFlat={preferFlat} accent={accent}/>
+          : tab.isModes
+            ? <ModesPanel keyObj={keyObj} isMinor={isMinor} preferFlat={preferFlat} accent={accent}/>
+            : tab.isScales
+              ? <div style={{maxWidth:760,margin:'0 auto',padding:'20px 16px 100px'}}>
+                  {tab.scales.map(sk=><ScaleCard key={sk} keyObj={keyObj} scaleKey={sk} preferFlat={preferFlat} accent={accent}/>)}
+                </div>
+              : <div style={{maxWidth:760,margin:'0 auto',padding:'20px 16px 100px'}}>
+                  {tab.chords.map(({t,i})=><ChordCard key={`${t}-${i}`} keyObj={keyObj} chordType={t} inversion={i} preferFlat={preferFlat} accent={accent}/>)}
+                </div>
+        }
+      </div>
+    </div>
+  );
+};
+
+// ── CIRCLE OF FIFTHS ──────────────────────────────────────────────────────────
+const CircleOfFifths = ({ onSelectKey, accent }) => {
+  const [hov,setHov]=useState(null);
+  const CX=280,CY=280,R_OUT=268,R_MID=196,R_MIN=130,R_IN=72;
+  const toRad=deg=>(deg-90)*Math.PI/180;
+  const arc=(rO,rI,sD,eD,gap=1.5)=>{
+    const s=sD+gap,e=eD-gap,sr=toRad(s),er=toRad(e);
+    const x1=CX+rO*Math.cos(sr),y1=CY+rO*Math.sin(sr),x2=CX+rO*Math.cos(er),y2=CY+rO*Math.sin(er);
+    const x3=CX+rI*Math.cos(er),y3=CY+rI*Math.sin(er),x4=CX+rI*Math.cos(sr),y4=CY+rI*Math.sin(sr);
+    return `M${x1},${y1} A${rO},${rO} 0 0,1 ${x2},${y2} L${x3},${y3} A${rI},${rI} 0 0,0 ${x4},${y4}Z`;
+  };
+  const lp=(r,deg)=>({x:CX+r*Math.cos(toRad(deg)),y:CY+r*Math.sin(toRad(deg))});
+  const sigLabel=s=>s===0?'—':s>0?`${s}♯`:`${Math.abs(s)}♭`;
+
+  return (
+    <div style={{minHeight:'100vh',background:'#f0ebe4',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'16px 12px 100px'}}>
+      <DailyChallenge/>
+      <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.35em',color:'#aaa',textTransform:'uppercase',marginBottom:16}}>Select a Key</p>
+      <svg width={560} height={560} viewBox="0 0 560 560" style={{maxWidth:'min(94vw,94vh,560px)',maxHeight:'min(94vw,94vh,560px)'}}>
+        <defs><filter id="sh"><feDropShadow dx="0" dy="3" stdDeviation="10" floodColor="#00000018"/></filter></defs>
+        <circle cx={CX} cy={CY} r={R_OUT+2} fill="#fff" filter="url(#sh)"/>
+        {COF_MAJOR.map((key,i)=>{
+          const angle=i*30,isHov=hov===key.id,lM=lp((R_OUT+R_MID)/2,angle),lS=lp(R_OUT-18,angle);
+          return(<g key={key.id} className="cof-seg" onMouseEnter={()=>setHov(key.id)} onMouseLeave={()=>setHov(null)} onClick={()=>onSelectKey(key,false)}>
+            <path d={arc(R_OUT,R_MID,angle-15,angle+15)} fill={isHov?'#fff8f0':'#fff'} stroke={isHov?accent:'#e8e0d8'} strokeWidth={isHov?2:1}/>
+            <text x={lM.x} y={lM.y} textAnchor="middle" dominantBaseline="middle" fill={isHov?accent:'#1a1a1a'} fontSize={key.display.length>3?13:key.display.length>2?17:22} fontWeight="900" fontFamily="Georgia,serif" style={{pointerEvents:'none'}}>{key.display}</text>
+            <text x={lS.x} y={lS.y} textAnchor="middle" dominantBaseline="middle" fill="#ccc" fontSize={8} fontFamily="sans-serif" style={{pointerEvents:'none'}}>{sigLabel(key.sharps)}</text>
+          </g>);
+        })}
+        <circle cx={CX} cy={CY} r={R_MID} fill="none" stroke="#e8e0d8" strokeWidth={2}/>
+        {COF_MINOR.map(key=>{
+          const angle=key.angle,isHov=hov===key.id,lM=lp((R_MID-14+R_MIN)/2,angle);
+          return(<g key={key.id} className="cof-seg" onMouseEnter={()=>setHov(key.id)} onMouseLeave={()=>setHov(null)} onClick={()=>onSelectKey(key,true)}>
+            <path d={arc(R_MID-14,R_MIN,angle-15,angle+15)} fill={isHov?'#fff8f0':'#f7f4f0'} stroke={isHov?accent:'#e8e0d8'} strokeWidth={isHov?1.5:1}/>
+            <text x={lM.x} y={lM.y} textAnchor="middle" dominantBaseline="middle" fill={isHov?accent:'#777'} fontSize={key.display.length>3?9:11} fontWeight="600" fontFamily="sans-serif" style={{pointerEvents:'none'}}>{key.display}</text>
+          </g>);
+        })}
+        <circle cx={CX} cy={CY} r={R_MIN} fill="none" stroke="#e8e0d8" strokeWidth={1.5}/>
+        <circle cx={CX} cy={CY} r={R_IN} fill="#f7f4f0" stroke="#e8e0d8" strokeWidth={1.5}/>
+        <text x={CX} y={CY-8} textAnchor="middle" dominantBaseline="middle" fill={accent} fontSize={28} fontFamily="Georgia,serif" fontWeight="700" style={{pointerEvents:'none'}}>♩</text>
+        <text x={CX} y={CY+16} textAnchor="middle" dominantBaseline="middle" fill="#bbb" fontSize={7} fontWeight="700" letterSpacing="3" fontFamily="sans-serif" style={{pointerEvents:'none'}}>MINOR</text>
+        <circle cx={CX} cy={CY} r={R_OUT+1} fill="none" stroke={accent} strokeWidth={5}/>
+      </svg>
+      <div style={{display:'flex',gap:20,marginTop:14,fontSize:11,color:'#aaa',fontFamily:'sans-serif'}}>
+        <span>Outer — Major</span><span>·</span><span>Inner — Minor</span>
+      </div>
+    </div>
+  );
+};
+
+// ── APP ────────────────────────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#ff8000",
+  "showFlatNames": true
+}/*EDITMODE-END*/;
+
+const App = () => {
+  const [view,setView]=useState('circle');
+  const [selKey,setSelKey]=useState(null);
+  const [isMinor,setIsMinor]=useState(false);
+  const [tweaks,setTweaks]=useState(TWEAK_DEFAULTS);
+  const [tweaksOpen,setTweaksOpen]=useState(false);
+  const [showQuiz,setShowQuiz]=useState(false);
+  const [showSong,setShowSong]=useState(false);
+  const [showApiKey,setShowApiKey]=useState(false);
+
+  useEffect(()=>{document.documentElement.style.setProperty('--accent',tweaks.accentColor);},[tweaks.accentColor]);
+
+  useEffect(()=>{
+    try{const s=JSON.parse(localStorage.getItem('cof-v3')||'{}');
+      if(s.view)setView(s.view);if(s.key)setSelKey(s.key);if(s.isMinor!==undefined)setIsMinor(s.isMinor);}catch(e){}
+  },[]);
+
+  const nav=(v,k,m)=>{setView(v);setSelKey(k);setIsMinor(m);localStorage.setItem('cof-v3',JSON.stringify({view:v,key:k,isMinor:m}));};
+
+  useEffect(()=>{
+    const h=e=>{
+      if(e.data?.type==='__activate_edit_mode')setTweaksOpen(true);
+      if(e.data?.type==='__deactivate_edit_mode')setTweaksOpen(false);
+    };
+    window.addEventListener('message',h);
+    window.parent.postMessage({type:'__edit_mode_available'},'*');
+    return()=>window.removeEventListener('message',h);
+  },[]);
+
+  const setTweak=(k,v)=>{const next={...tweaks,[k]:v};setTweaks(next);window.parent.postMessage({type:'__edit_mode_set_keys',edits:next},'*');};
+  const accent=tweaks.accentColor;
+
+  return (
+    <>
+      {view==='key'&&selKey
+        ? <KeyPage keyObj={selKey} isMinor={isMinor} accent={accent} onBack={()=>nav('circle',selKey,isMinor)} onNavigate={(k,m)=>nav('key',k,m)}/>
+        : <CircleOfFifths accent={accent} onSelectKey={(k,m)=>nav('key',k,m)}/>
+      }
+      <AIFloatingBar onQuiz={()=>setShowQuiz(true)} onSong={()=>setShowSong(true)} onKey={()=>setShowApiKey(true)}/>
+      {showQuiz&&<QuizModal onClose={()=>setShowQuiz(false)}/>}
+      {showSong&&<SongDecoderModal onClose={()=>setShowSong(false)}/>}
+      {showApiKey&&<APIKeyModal onClose={()=>setShowApiKey(false)}/>}
+      {tweaksOpen&&(
+        <div style={{position:'fixed',bottom:20,right:20,zIndex:9999,background:'#fff',border:'1.5px solid #ddd',borderRadius:12,padding:'16px 18px',width:210,boxShadow:'0 8px 32px rgba(0,0,0,0.14)',fontFamily:'sans-serif'}}>
+          <p style={{fontWeight:700,color:'#1a1a1a',marginBottom:12,fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase'}}>Tweaks</p>
+          <div style={{marginBottom:10}}>
+            <label style={{display:'block',color:'#aaa',fontSize:10,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.07em'}}>Accent Color</label>
+            <input type="color" value={tweaks.accentColor} onChange={e=>setTweak('accentColor',e.target.value)} style={{width:'100%',height:30,border:'none',borderRadius:5,cursor:'pointer'}}/>
+          </div>
+          <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',color:'#555',fontSize:13}}>
+            <input type="checkbox" checked={tweaks.showFlatNames} onChange={e=>setTweak('showFlatNames',e.target.checked)}/>
+            Prefer flat names
+          </label>
+        </div>
+      )}
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
