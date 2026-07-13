@@ -1,7 +1,7 @@
 // Circle of Fifths — Service Worker
 // Caches all app files for full offline support on iPad
 
-const CACHE_NAME = 'cof-app-v2';
+const CACHE_NAME = 'cof-app-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -53,8 +53,9 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Never intercept AI/API calls — always go to network
-  if (url.hostname.includes('anthropic') || url.pathname.includes('/api/')) {
+  // Never intercept anything off this site (AI APIs, CDNs) — always go to network
+  // untouched, so auth headers can never be affected.
+  if (url.origin !== self.location.origin) {
     return;
   }
 

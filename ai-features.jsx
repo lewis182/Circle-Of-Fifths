@@ -17,20 +17,21 @@ function useAI() {
         text = await window.claude.complete(prompt);
       } else {
         // On the web, use OpenRouter with the same key as the Score Analyser.
-        let apiKey = (localStorage.getItem('sa_or_key') || '').trim();
+        const apiKey = (localStorage.getItem('sa_or_key') || '').trim();
         if (!apiKey) {
-          apiKey = (window.prompt('Paste your OpenRouter API key (sk-or-...) to enable AI features:') || '').trim();
-          if (!apiKey) { setResult('AI needs an OpenRouter key — add one to enable it.'); setLoading(false); return; }
-          localStorage.setItem('sa_or_key', apiKey);
+          setResult('To enable AI: tap "Analyse Score" (top bar), enter your OpenRouter key, Save — then come back and try again.');
+          setLoading(false);
+          return;
         }
-        const model = localStorage.getItem('sa_or_model') || 'anthropic/claude-sonnet-4.5';
+        let model = (localStorage.getItem('sa_or_model') || '').trim();
+        if (!/^anthropic\/claude-(sonnet-4\.5|opus-4\.8)$/.test(model)) model = 'anthropic/claude-sonnet-4.5';
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey, 'HTTP-Referer':location.href, 'X-Title':'Circle of Fifths' },
+          headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey, 'X-Title':'Circle of Fifths' },
           body: JSON.stringify({ model, max_tokens: 400, provider:{ data_collection:'deny' }, messages:[{ role:'user', content: prompt }] })
         });
         const json = await res.json();
-        if (json.error) throw new Error(json.error.message || 'API error');
+        if (json.error) throw new Error((json.error.message || 'API error') + ' [model ' + model + ', key …' + apiKey.slice(-4) + ']');
         text = (json.choices?.[0]?.message?.content || '').trim() || 'No response.';
       }
       setResult(text);
@@ -77,6 +78,9 @@ function DailyChallenge() {
     const today = new Date().toDateString();
     const saved = JSON.parse(localStorage.getItem('cof-daily')||'{}');
     if (saved.date===today && saved.challenge) return;
+    // Only auto-generate when AI is actually available — never nag on page load.
+    const hasAI = (window.claude && window.claude.complete) || (localStorage.getItem('sa_or_key') || '').trim();
+    if (!hasAI) return;
     run(`Create a focused daily piano practice challenge for an intermediate student learning music theory. One specific thing to practice today in 10 minutes. Focus on key relationships, inversions, or modes. 2 sentences max. No markdown.`);
   }, []);
 
@@ -267,7 +271,7 @@ function ProgressionPanel({ keyDisplay, isMinor }) {
   const [loaded, setLoaded] = useState(false);
 
   const load = () => {
-    if (loaded) return; setLoaded(true);
+    setLoaded(true);
     run(`List 4 chord progressions for ${keyDisplay} ${isMinor?'minor':'major'} with increasing sophistication. For each use ONLY this exact format (one per line, pipe-separated):
 [Roman numerals] | [Chord names] | [Style/Feel] | [Famous song example]`);
   };
@@ -282,9 +286,10 @@ function ProgressionPanel({ keyDisplay, isMinor }) {
       <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
         <span style={{fontSize:13,fontWeight:700,color:'#1a1a1a'}}>Chord Progressions</span>
         <AIPill/>
-        {!loaded && <button onClick={load} style={{marginLeft:'auto',padding:'4px 10px',borderRadius:6,border:`1px solid ${ORANGE}`,background:'#fff8f0',color:ORANGE,fontSize:11,fontWeight:700,cursor:'pointer'}}>Generate ✦</button>}
+        {(!loaded || (result && !loading && progressions.length===0)) && <button onClick={load} style={{marginLeft:'auto',padding:'4px 10px',borderRadius:6,border:`1px solid ${ORANGE}`,background:'#fff8f0',color:ORANGE,fontSize:11,fontWeight:700,cursor:'pointer'}}>Generate ✦</button>}
       </div>
       {loading && <p style={{fontSize:12,color:'#aaa',padding:'8px 0'}}>Generating… ✦</p>}
+      {result && !loading && progressions.length===0 && <AIBlock compact>{result}</AIBlock>}
       {progressions.map((p,i)=>(
         <div key={i} style={{background:'#fff',border:'1px solid #ffe0b2',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
           <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:4}}>
@@ -340,7 +345,7 @@ function PracticePathPanel({ currentKey, isMinor }) {
   const [steps, setSteps] = useState([]);
 
   const load = () => {
-    if (loaded) return; setLoaded(true);
+    setLoaded(true);
     const visited = JSON.parse(localStorage.getItem('cof-visited')||'[]');
     const keyStr = visited.length>0 ? visited.slice(-6).join(', ') : `${currentKey} ${isMinor?'minor':'major'}`;
     run(`Create a 5-step practice path focused on key relationships and modal theory for someone who has studied: ${keyStr}. Current focus: ${currentKey} ${isMinor?'minor':'major'}. Each step should build musical understanding, not just technical exercises. Number 1-5, one line each, no extra text.`);
@@ -364,9 +369,10 @@ function PracticePathPanel({ currentKey, isMinor }) {
       <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
         <span style={{fontSize:13,fontWeight:700,color:'#1a1a1a'}}>Practice Path</span>
         <AIPill/>
-        {!loaded&&<button onClick={load} style={{marginLeft:'auto',padding:'4px 10px',borderRadius:6,border:`1px solid ${ORANGE}`,background:'#fff8f0',color:ORANGE,fontSize:11,fontWeight:700,cursor:'pointer'}}>Generate ✦</button>}
+        {(!loaded || (result && !loading && steps.length===0))&&<button onClick={load} style={{marginLeft:'auto',padding:'4px 10px',borderRadius:6,border:`1px solid ${ORANGE}`,background:'#fff8f0',color:ORANGE,fontSize:11,fontWeight:700,cursor:'pointer'}}>Generate ✦</button>}
       </div>
       {loading&&<p style={{fontSize:12,color:'#aaa'}}>Building your path… ✦</p>}
+      {result && !loading && steps.length===0 && <AIBlock compact>{result}</AIBlock>}
       {steps.map((s,i)=>(
         <div key={s.id} onClick={()=>toggle(s.id)} style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:8,cursor:'pointer',opacity:s.done?0.45:1}}>
           <div style={{width:24,height:24,borderRadius:'50%',flexShrink:0,marginTop:1,background:s.done?'#4caf50':i===steps.findIndex(x=>!x.done)?ORANGE:'#e0e0e0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'#fff',transition:'all 0.2s'}}>{s.done?'✓':s.id}</div>
@@ -385,7 +391,7 @@ function KeyJourneyPanel({ keyDisplay, isMinor, relativeKey }) {
   const [checked, setChecked] = useState({});
 
   const load = () => {
-    if (loaded) return; setLoaded(true);
+    setLoaded(true);
     const rel = relativeKey ? `${relativeKey.display} ${isMinor?'major':'minor'}` : '';
     run(`Give exactly 6 key relationship insights for ${keyDisplay} ${isMinor?'minor':'major'}${rel?' (relative: '+rel+')':''}.
 Each insight should be a short actionable fact a musician can internalise — covering: relative key, neighbouring keys on the CoF, shared chords, common modulations, characteristic chord borrowed from parallel key, and one practical tip.
@@ -411,7 +417,7 @@ Return ONLY a numbered list 1-6, one insight per line, no extra text, no markdow
         {points.length > 0 && (
           <span style={{fontSize:11,color:'#aaa',marginLeft:4}}>{done}/{points.length}</span>
         )}
-        {!loaded && (
+        {(!loaded || (result && !loading && points.length===0)) && (
           <button onClick={load} style={{marginLeft:'auto',padding:'4px 10px',borderRadius:6,
             border:`1px solid ${ORANGE}`,background:'#fff8f0',
             color:ORANGE,fontSize:11,fontWeight:700,cursor:'pointer'}}>
@@ -422,6 +428,7 @@ Return ONLY a numbered list 1-6, one insight per line, no extra text, no markdow
       {loading && (
         <p style={{fontSize:12,color:'#aaa',padding:'6px 0'}}>Analysing key relationships… ✦</p>
       )}
+      {result && !loading && points.length===0 && <AIBlock compact>{result}</AIBlock>}
       {points.map((p, i) => (
         <div key={p.id} onClick={() => toggle(p.id)} style={{
           display:'flex', gap:10, alignItems:'flex-start',
