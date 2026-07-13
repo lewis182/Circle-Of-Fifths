@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Score Analyser</title>
+
+<!-- PWA — home screen & status bar -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ScoreAnalyser">
+<meta name="theme-color" content="#cc8033">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<!-- Fonts aligned to Circle of Fifths: Helvetica Neue (sans) + Georgia (serif) — no external load needed -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  /* Palette aligned to Circle of Fifths (orange #ff8000) with saturation reduced 40% */
+  --bg:#ffffff;--bg2:#eeebe6;--bg3:#e8e4dd;
+  --text:#1a1a1a;--text2:#555;--text3:#999;
+  --border:#e5e3df;--border2:#ccc;
+  --accent:#cc8033;--accent-h:#a36629;
+  --blue:#588abc;--danger:#c46968;--danger-bg:rgba(196,105,104,0.05);
+  /* ── CoF-orange tone palette — one shade per scale degree (saturation -40%) ── */
+  --d1:#311f0c; /* Root       — deepest orange-brown */
+  --d2:#523314; /* 2nd / Sus2 — dark                 */
+  --d3:#7a4d1f; /* 3rd                               */
+  --d4:#a36629; /* 4th / Sus4                        */
+  --d5:#cc8033; /* 5th        — base accent          */
+  --d6:#d6995c; /* 6th                               */
+  --d7:#e0b385; /* 7th       — warm pale             */
+}
+body{background:var(--bg);color:var(--text);font-family:'Helvetica Neue',Arial,sans-serif;min-height:100vh;}
+
+/* ── OVERLAY / MODAL ── */
+.overlay{position:fixed;inset:0;background:rgba(26,26,26,0.55);z-index:300;display:none;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.api-modal{background:var(--bg);border:1px solid var(--border);padding:40px 44px;max-width:460px;width:92%;}
+.api-modal h2{font-family:Georgia,serif;font-size:24px;font-weight:400;margin-bottom:8px;}
+.api-modal p.sub{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6;font-weight:300;}
+.api-modal label{font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px;}
+.api-modal input,.api-modal select{width:100%;border:1px solid var(--border2);background:var(--bg2);padding:10px 12px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:var(--text);outline:none;border-radius:2px;margin-bottom:14px;}
+.api-modal input:focus,.api-modal select:focus{border-color:var(--accent);}
+.api-modal .note{font-size:11px;color:var(--text3);margin-top:8px;font-weight:300;line-height:1.5;}
+.modal-actions{display:flex;gap:8px;margin-top:4px;}
+
+/* ── Layout ── */
+.app{max-width:1040px;margin:0 auto;padding:0 0 4rem;}
+.app-header{display:flex;flex-direction:column;gap:0;padding:0;border-bottom:1px solid var(--border);}
+.header-row1{display:flex;align-items:center;justify-content:space-between;padding:1.25rem 2.5rem 1rem;flex-wrap:wrap;gap:10px;}
+.header-row2{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 2.5rem 0.6rem;border-top:1px solid var(--border);background:var(--bg2);}
+.wordmark{font-family:Georgia,serif;font-size:26px;font-weight:400;letter-spacing:-0.02em;color:var(--text);}
+.wordmark span{color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.header-left{display:flex;align-items:center;gap:10px;}
+.song-block{text-align:right;opacity:0.3;transition:opacity 0.4s;}
+.song-block.loaded{opacity:1;}
+.song-name{font-family:Georgia,serif;font-size:14px;color:var(--text);}
+.song-detail{font-size:11px;font-weight:300;color:var(--text2);margin-top:2px;}
+.hbtn{display:flex;align-items:center;gap:7px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;padding:9px 16px;border-radius:2px;cursor:pointer;transition:background 0.15s,color 0.15s;white-space:nowrap;}
+.hbtn-accent{border:1px solid var(--accent);background:transparent;color:var(--accent);}
+.hbtn-accent:hover{background:var(--accent);color:#fff;}
+.hbtn-ghost{border:1px solid var(--border2);background:transparent;color:var(--text2);}
+.hbtn-ghost:hover{border-color:var(--text2);color:var(--text);}
+.key-configured{border-color:#3a6a3a;color:#3a6a3a;}
+.hbtn:disabled{opacity:0.35;cursor:not-allowed;pointer-events:none;}
+.storage-tag{font-size:11px;color:var(--text3);font-weight:300;padding:4px 10px;border:1px solid var(--border);border-radius:2px;cursor:pointer;background:transparent;font-family:'Helvetica Neue',Arial,sans-serif;white-space:nowrap;}
+.storage-tag:hover{border-color:var(--border2);color:var(--text2);}
+
+/* ── Dropdown menus ── */
+.dropdown{position:relative;display:inline-block;}
+.dropdown-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--bg);border:1px solid var(--border2);border-radius:3px;min-width:220px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.10);}
+.dropdown-menu.open{display:block;}
+.dropdown-menu-item{display:block;width:100%;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;padding:10px 14px;border:none;background:transparent;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);}
+.dropdown-menu-item:last-child{border-bottom:none;}
+.dropdown-menu-item:hover{background:var(--bg2);}
+.dropdown-menu-item.danger{color:var(--danger);}
+.dropdown-menu-item.muted{color:var(--text3);cursor:default;}
+.dropdown-menu-item.muted:hover{background:transparent;}
+.dropdown-divider{height:0;border-top:1px solid var(--border);margin:4px 0;}
+.songs-list{max-height:260px;overflow-y:auto;}
+
+/* ── Export modal ── */
+.export-modal{background:var(--bg);border:1px solid var(--border);padding:36px 40px;max-width:420px;width:92%;}
+.export-modal h2{font-family:Georgia,serif;font-size:22px;font-weight:400;margin-bottom:8px;}
+.export-modal p.sub{font-size:13px;color:var(--text2);margin-bottom:20px;font-weight:300;line-height:1.6;}
+.export-modal label{font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:8px;}
+.export-opt{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+.export-opt-btn{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;font-family:'Helvetica Neue',Arial,sans-serif;text-align:left;transition:border-color 0.12s,background 0.12s;}
+.export-opt-btn:hover{border-color:var(--accent);background:rgba(204,128,51,0.03);}
+.export-opt-btn .eicon{width:32px;height:32px;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.export-opt-btn .etitle{font-size:13px;font-weight:500;color:var(--text);}
+.export-opt-btn .esub{font-size:11px;color:var(--text3);font-weight:300;}
+.export-progress{font-size:13px;color:var(--text2);padding:1rem 0;display:none;}
+
+/* ── Nav ── */
+.nav{display:flex;padding:0 2.5rem;border-bottom:1px solid var(--border);}
+.nav-btn{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;padding:14px 20px 13px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text3);cursor:pointer;margin-bottom:-1px;transition:color 0.15s;}
+.nav-btn:hover{color:var(--text);}
+.nav-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* ── Panels ── */
+.panel{display:none;padding:2.5rem;}
+.panel.active{display:block;}
+.idle-msg{font-size:13px;color:var(--text3);font-weight:300;padding:3rem 0;font-style:italic;}
+
+/* ── Upload ── */
+.upload-area{border:1px dashed var(--border2);border-radius:4px;padding:4rem 2rem;text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;max-width:600px;margin:0 auto;}
+.upload-area:hover,.upload-area.drag{border-color:var(--accent);background:rgba(204,128,51,0.03);}
+.upload-area h2{font-family:Georgia,serif;font-size:20px;font-weight:400;margin-bottom:8px;}
+.upload-area p{font-size:12px;color:var(--text3);font-weight:300;margin-top:4px;line-height:1.6;}
+
+/* ── Loading ── */
+.loading-state{display:flex;align-items:center;justify-content:center;gap:12px;padding:5rem 0;font-size:13px;color:var(--text2);}
+.spin{width:18px;height:18px;border:1.5px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:rot 0.7s linear infinite;flex-shrink:0;}
+@keyframes rot{to{transform:rotate(360deg);}}
+
+/* ── Error state ── */
+.error-state{padding:2.5rem 0;max-width:540px;}
+.error-label{font-size:10px;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+.error-headline{font-family:Georgia,serif;font-size:20px;font-weight:400;color:var(--text);margin-bottom:8px;line-height:1.3;}
+.error-hint{font-size:13px;color:var(--text2);font-weight:300;line-height:1.7;margin-bottom:1.5rem;}
+
+/* ── Confirm ── */
+.confirm-wrap{max-width:560px;}
+.confirm-title{font-family:Georgia,serif;font-size:22px;font-weight:400;margin-bottom:8px;}
+.confirm-sub{font-size:13px;color:var(--text2);margin-bottom:1.5rem;font-weight:300;line-height:1.6;}
+.confirm-card{border:1px solid var(--border);border-radius:4px;margin-bottom:1.5rem;overflow:hidden;}
+.confirm-row{display:flex;align-items:center;gap:1rem;padding:12px 16px;border-bottom:1px solid var(--border);}
+.confirm-row:last-child{border-bottom:none;}
+.confirm-row-label{flex:1;}
+.confirm-row-label p{font-size:13px;font-weight:500;}
+.confirm-row-label small{font-size:11px;color:var(--text2);font-weight:300;}
+input.ci{font-size:13px;padding:6px 10px;border:1px solid var(--border2);border-radius:2px;background:var(--bg2);color:var(--text);width:100px;font-family:'Helvetica Neue',Arial,sans-serif;}
+input.ci:focus{outline:none;border-color:var(--accent);}
+
+/* ── Action buttons ── */
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+.abtn{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;padding:10px 20px;border-radius:2px;cursor:pointer;}
+.abtn-primary{background:var(--accent);color:#fff;border:1px solid var(--accent);}
+.abtn-primary:hover{background:var(--accent-h);}
+.abtn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2);}
+.abtn-ghost:hover{border-color:var(--text2);color:var(--text);}
+
+/* ── Chart ── */
+.chart-layout{display:grid;grid-template-columns:1fr 216px;gap:2.5rem;align-items:start;}
+.section-block{margin-bottom:2rem;}
+.section-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.section-name{font-size:10px;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;}
+.section-bars{font-size:11px;color:var(--text3);font-weight:300;}
+.chord-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+.chord-card{border:1px solid var(--border);border-radius:3px;padding:10px 12px;background:var(--bg);transition:border-color 0.12s;cursor:pointer;}
+.chord-card:hover{border-color:var(--border2);}
+.chord-card.minor{border-left:3px solid var(--blue);}
+.chord-card.chromatic{border-left:3px solid var(--accent);}
+.chord-card.uncertain{border-left:3px solid var(--danger);background:var(--danger-bg);}
+.chord-card.neutral{background:var(--bg2);}
+.cc-name{font-family:Georgia,serif;font-size:16px;font-weight:400;color:var(--text);margin-bottom:4px;}
+.cc-num{font-size:10px;color:var(--text3);}
+.cc-num.minor{color:var(--blue);}
+.cc-num.chromatic{color:var(--accent);}
+.cc-num.uncertain{color:var(--danger);}
+
+/* ── Sidebar ── */
+.sb-section{margin-bottom:1.75rem;}
+.sb-label{font-size:10px;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid var(--border);}
+/* Tone palette */
+.pal-row{display:flex;align-items:center;gap:7px;margin-bottom:5px;}
+.pal-swatch{width:32px;height:18px;border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;font-family:'Helvetica Neue',Arial,sans-serif;}
+.pal-label{font-size:10px;color:var(--text2);}
+.pal-label strong{color:var(--text);font-weight:500;}
+/* Sidebar chord keyboards */
+.sb-chord-item{margin-bottom:14px;overflow-x:auto;}
+.sb-chord-name{font-family:Georgia,serif;font-size:13px;color:var(--text);margin-bottom:5px;}
+/* Export section */
+.fmt-row{display:flex;gap:5px;margin-bottom:10px;}
+.fmt-btn{font-size:10px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border-radius:2px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;}
+.fmt-btn.sel{border-color:var(--accent);color:var(--accent);}
+.dl-btn{width:100%;text-align:left;font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;padding:9px 12px;border-radius:2px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);margin-bottom:6px;transition:border-color 0.12s,color 0.12s;}
+.dl-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── Lead sheet ── */
+.ls-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;}
+.ls-header h2{font-family:Georgia,serif;font-size:22px;font-weight:400;}
+.ls-sec-head{font-size:10px;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;color:var(--text3);padding:14px 0 6px;border-bottom:1px solid var(--border);margin-top:6px;}
+.ls-row{display:grid;grid-template-columns:36px 130px 90px 1fr;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.ls-row:last-child{border-bottom:none;}
+.ls-barnum{font-size:10px;color:var(--text3);font-weight:300;}
+.ls-chord{font-family:Georgia,serif;font-size:15px;color:var(--text);}
+.ls-num{font-size:11px;color:var(--text2);}
+.ls-note{font-size:11px;color:var(--text3);font-style:italic;}
+
+/* ── Analysis / Commentary ── */
+.an-block{padding:1.5rem 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:180px 1fr;gap:2.5rem;}
+.an-block:last-child{border-bottom:none;}
+.an-heading{font-size:10px;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text2);padding-top:2px;}
+.an-body{font-size:13px;color:var(--text2);line-height:1.75;font-weight:300;}
+.an-tags{margin-top:12px;display:flex;flex-wrap:wrap;gap:5px;}
+.an-tag{font-size:10px;font-weight:500;padding:3px 9px;border-radius:20px;border:1px solid var(--border);color:var(--text3);}
+
+/* ── Warn ── */
+.warn-banner{background:rgba(204,128,51,0.07);border:1px solid rgba(204,128,51,0.25);border-radius:3px;padding:10px 14px;margin-bottom:1.25rem;font-size:13px;color:#653825;font-weight:300;}
+
+/* ── Piano popup ── */
+.piano-popup{background:var(--bg);border:1px solid var(--border);padding:24px 26px;max-width:380px;width:96%;max-height:94vh;overflow-y:auto;}
+.pp-title{font-family:Georgia,serif;font-size:22px;font-weight:400;margin-bottom:2px;}
+.pp-sub{font-size:11px;color:var(--text3);font-weight:300;margin-bottom:14px;}
+/* Note legend */
+.note-legend{display:flex;gap:6px;flex-wrap:wrap;padding:9px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;margin-bottom:16px;}
+.nl-chip{display:inline-flex;align-items:center;gap:5px;}
+.nl-swatch{width:26px;height:20px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;font-family:'Helvetica Neue',Arial,sans-serif;}
+.nl-text{font-size:10px;color:var(--text2);line-height:1.3;}
+.nl-text strong{display:block;font-size:11px;color:var(--text);font-weight:500;}
+/* Inversion rows */
+.inv-row{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.inv-row:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+.inv-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;}
+.inv-title{font-size:9px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);}
+.inv-bass{font-size:10px;color:var(--text3);font-weight:300;}
+.inv-kb{overflow-x:auto;padding-bottom:2px;}
+/* Note tags below each keyboard */
+.inv-tags{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;}
+.inv-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px 2px 6px;border-radius:3px;font-size:10px;font-weight:600;color:#fff;font-family:'Helvetica Neue',Arial,sans-serif;}
+.inv-tag-role{font-size:8px;font-weight:400;opacity:0.8;margin-left:1px;}
+.inv-tag-bass::after{content:' ▼';font-size:7px;opacity:0.85;}
+
+/* ── Chord edit button (hover) ── */
+.cc-edit-btn{position:absolute;top:4px;right:4px;width:18px;height:18px;border:1px solid var(--border2);background:var(--bg2);border-radius:2px;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;color:var(--text3);padding:0;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;}
+.chord-card:hover .cc-edit-btn{display:flex;}
+.cc-edit-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg);}
+/* ── Chord edit overlay ── */
+.chord-edit-overlay{position:fixed;z-index:500;background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:12px 14px;box-shadow:0 4px 18px rgba(0,0,0,0.13);display:none;min-width:180px;}
+.chord-edit-overlay input{font-family:Georgia,serif;font-size:16px;border:1px solid var(--border2);border-radius:2px;padding:5px 9px;width:100%;color:var(--text);background:var(--bg2);outline:none;margin-bottom:9px;display:block;box-sizing:border-box;}
+.chord-edit-overlay input:focus{border-color:var(--accent);}
+.chord-edit-overlay .edit-label{font-size:10px;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;display:block;}
+.chord-edit-overlay .edit-actions{display:flex;gap:6px;}
+</style>
+</head>
+<body>
+
+<!-- API KEY MODAL -->
+<div class="overlay" id="apiModal">
+  <div class="api-modal">
+    <h2>OpenRouter settings</h2>
+    <p class="sub">Enter your OpenRouter API key and choose a model. Saved in your browser — you only need to do this once.</p>
+    <label>API key</label>
+    <input type="password" id="apiKeyInput" placeholder="sk-or-…" autocomplete="off">
+    <label>Model</label>
+    <select id="modelSelect">
+      <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5 — recommended</option>
+      <option value="anthropic/claude-opus-4.8">Claude Opus 4.8 — highest quality (pricier)</option>
+    </select>
+    <p class="note">Only Claude is listed — these work reliably under your no-training data policy (GPT/Gemini can fail to route).<br>Get a key at openrouter.ai</p>
+    <div class="modal-actions">
+      <button class="abtn abtn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="abtn abtn-primary" onclick="saveApiKey()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+
+  <header class="app-header">
+    <div class="header-row1">
+      <div class="wordmark">Score<span>·</span>Analyser</div>
+      <div class="song-block" id="songBlock">
+        <div class="song-name" id="songName">—</div>
+        <div class="song-detail" id="songDetail">No file loaded</div>
+      </div>
+    </div>
+    <div class="header-row2">
+      <div class="header-left">
+        <span style="font-size:10px;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;color:var(--text3);">Storage</span>
+        <div class="dropdown" id="storageDropdown">
+          <button class="storage-tag" onclick="toggleDropdown('storageDropdown')" id="storageBtn">localStorage ▾</button>
+          <div class="dropdown-menu" id="storageDropdownMenu" style="min-width:240px;left:0;right:auto;">
+            <div class="dropdown-menu-item muted" style="cursor:default;">
+              <strong style="font-size:12px;color:var(--text);">Browser localStorage</strong><br>
+              <span style="font-size:11px;">Data persists in this browser between sessions.</span>
+            </div>
+            <button class="dropdown-menu-item" onclick="closeAllDropdowns();backupToFile();">
+              <strong>Backup to file</strong><br>
+              <span style="font-size:11px;color:var(--text3);">Save all songs as a .json file on your computer</span>
+            </button>
+            <button class="dropdown-menu-item" onclick="closeAllDropdowns();document.getElementById('restoreInput').click();">
+              <strong>Restore from file</strong><br>
+              <span style="font-size:11px;color:var(--text3);">Load a previously backed-up .json file</span>
+            </button>
+            <button class="dropdown-menu-item danger" onclick="closeAllDropdowns();clearAllSongs();">Clear all saved songs</button>
+          </div>
+        </div>
+        <span style="font-size:11px;color:var(--text3);font-weight:300;" id="storageCount"></span>
+        <input type="file" id="restoreInput" accept=".json" style="display:none;" onchange="restoreFromFile(this)">
+      </div>
+      <div class="header-right">
+        <button class="hbtn hbtn-ghost" id="saveBtn" onclick="saveSong()" disabled title="Load a file to enable Save">Save</button>
+        <div class="dropdown" id="exportDropdown">
+          <button class="hbtn hbtn-ghost" id="exportBtn" onclick="toggleDropdown('exportDropdown')" disabled title="Load a file to enable Export">Export ▾</button>
+          <div class="dropdown-menu" id="exportDropdownMenu">
+            <button class="dropdown-menu-item" onclick="closeAllDropdowns();openExportModal();">
+              <strong>Export as PDF</strong><br><span style="font-size:11px;color:var(--text3);">All sections, print-ready</span>
+            </button>
+            <button class="dropdown-menu-item" onclick="closeAllDropdowns();doFullExport('docx');">
+              <strong>Export as Word (.rtf)</strong><br><span style="font-size:11px;color:var(--text3);">Editable, downloads immediately</span>
+            </button>
+          </div>
+        </div>
+        <div class="dropdown" id="songsDropdown">
+          <button class="hbtn hbtn-ghost" onclick="toggleDropdown('songsDropdown')">Songs ▾</button>
+          <div class="dropdown-menu songs-list" id="songsDropdownMenu" style="min-width:260px;"></div>
+        </div>
+        <button class="hbtn hbtn-accent" onclick="document.getElementById('fi').click()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Upload file
+        </button>
+        <button class="hbtn hbtn-ghost" id="apiBtn" onclick="openModal()">Key / Model</button>
+        <input type="file" id="fi" accept=".pdf,.xml,.mxl" style="display:none;" onchange="if(this.files[0])analyseFile(this.files[0])">
+      </div>
+    </div>
+  </header>
+
+  <!-- Export modal -->
+  <div class="overlay" id="exportModal">
+    <div class="export-modal">
+      <h2>Export analysis</h2>
+      <p class="sub">All four sections — Chord chart, Lead sheet, Analysis, and Construction — will be included.</p>
+      <label>Choose format</label>
+      <div class="export-opt">
+        <button class="export-opt-btn" onclick="doFullExport('pdf')">
+          <div class="eicon" style="background:#fdf5ed;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cc8033" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div><div class="etitle">PDF document</div><div class="esub">Print-ready, opens in browser for saving</div></div>
+        </button>
+        <button class="export-opt-btn" onclick="doFullExport('docx')">
+          <div class="eicon" style="background:#f1f4fc;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#516ec2" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+          <div><div class="etitle">Word document (.docx)</div><div class="esub">Editable — downloads immediately</div></div>
+        </button>
+      </div>
+      <p class="export-progress" id="exportProgress">Building document…</p>
+      <div class="modal-actions">
+        <button class="abtn abtn-ghost" onclick="closeExportModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Piano chord popup -->
+  <div class="overlay" id="pianoModal" onclick="if(event.target===this)closePianoModal()">
+    <div class="piano-popup">
+      <p class="pp-title" id="ppTitle"></p>
+      <p class="pp-sub">Tone colour shows each note's role · bass note marked ▼</p>
+      <div class="note-legend" id="ppLegend"></div>
+      <div id="ppInvRows"></div>
+      <div style="margin-top:18px;">
+        <button class="abtn abtn-ghost" onclick="closePianoModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chord edit overlay -->
+  <div class="chord-edit-overlay" id="chordEditOverlay">
+    <span class="edit-label">Edit chord</span>
+    <input type="text" id="chordEditInput" placeholder="e.g. Bb, Cm7, Ebmaj7"
+      onkeydown="if(event.key==='Enter')saveChordEdit();if(event.key==='Escape')closeChordEdit();">
+    <div class="edit-actions">
+      <button class="abtn abtn-primary" onclick="saveChordEdit()" style="padding:6px 14px;font-size:10px;">Save</button>
+      <button class="abtn abtn-ghost" onclick="closeChordEdit()" style="padding:6px 14px;font-size:10px;">Cancel</button>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-btn active" onclick="goTab('chord-chart',this)">Chord chart</button>
+    <button class="nav-btn" onclick="goTab('lead-sheet',this)">Lead sheet</button>
+    <button class="nav-btn" onclick="goTab('analysis',this)">Analysis</button>
+    <button class="nav-btn" onclick="goTab('commentary',this)">Construction</button>
+  </nav>
+
+  <!-- CHORD CHART -->
+  <div id="p-chord-chart" class="panel active">
+    <div id="ccUpload">
+      <div class="upload-area" id="dropZone" onclick="document.getElementById('fi').click()">
+        <div style="width:40px;height:40px;margin:0 auto 1.25rem;border:1px solid var(--border2);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text3);"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        </div>
+        <h2>Drop a file here to begin</h2>
+        <p>PDF · MusicXML · .mxl</p>
+        <p>MusicXML gives the cleanest results. PDFs with custom fonts may require manual chord confirmation.</p>
+      </div>
+    </div>
+    <div id="ccLoading" style="display:none;">
+      <div class="loading-state"><div class="spin"></div><span id="loadMsg">Reading file…</span></div>
+    </div>
+    <div id="ccConfirm" style="display:none;">
+      <div class="confirm-wrap">
+        <h2 class="confirm-title">Confirm uncertain chords</h2>
+        <p class="confirm-sub">The PDF has encoding issues in the sections below. Confirm or correct each chord before generating.</p>
+        <div class="confirm-card" id="confirmList"></div>
+        <div class="btn-row">
+          <button class="abtn abtn-primary" onclick="acceptConfirm()">Generate chart</button>
+          <button class="abtn abtn-ghost" onclick="resetAll()">Upload different file</button>
+        </div>
+      </div>
+    </div>
+    <div id="ccError" style="display:none;">
+      <div class="error-state">
+        <p class="error-label">Analysis failed</p>
+        <p class="error-headline" id="errHeadline"></p>
+        <p class="error-hint" id="errHint"></p>
+        <div class="btn-row">
+          <button class="abtn abtn-primary" onclick="resetAll()">Try again</button>
+          <button class="abtn abtn-ghost" onclick="openModal()">Change model / key</button>
+        </div>
+      </div>
+    </div>
+    <div id="ccResult" style="display:none;">
+      <div class="chart-layout">
+        <div id="chartBody"></div>
+        <div>
+          <!-- Tone palette -->
+          <div class="sb-section">
+            <div class="sb-label">Tone palette</div>
+            <div id="sbPalette"></div>
+          </div>
+          <!-- Chords used — mini keyboards, root position -->
+          <div class="sb-section">
+            <div class="sb-label">Chords used</div>
+            <div id="sbChords">
+              <p style="font-size:11px;color:var(--text3);font-weight:300;line-height:1.6;">Load a file to see chord keyboards.</p>
+            </div>
+          </div>
+          <!-- Export -->
+          <div class="sb-section">
+            <div class="sb-label">Export</div>
+            <div class="fmt-row">
+              <button class="fmt-btn sel" id="fmtGrid" onclick="setFmt('grid')">Grid</button>
+              <button class="fmt-btn" id="fmtText" onclick="setFmt('text')">Text</button>
+            </div>
+            <button class="dl-btn" onclick="doExport()">Download PDF</button>
+            <button class="dl-btn" onclick="resetAll()">Upload new file</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEAD SHEET -->
+  <div id="p-lead-sheet" class="panel">
+    <p class="idle-msg" id="lsIdle">Upload a file to generate the lead sheet.</p>
+    <div id="lsResult" style="display:none;">
+      <div class="ls-header">
+        <h2 id="lsTitle">Lead sheet</h2>
+        <button class="abtn abtn-ghost" onclick="exportLS()">Download .txt</button>
+      </div>
+      <div id="lsBody"></div>
+    </div>
+  </div>
+
+  <!-- ANALYSIS -->
+  <div id="p-analysis" class="panel">
+    <p class="idle-msg" id="anIdle">Upload a file to generate the harmonic analysis.</p>
+    <div id="anResult" style="display:none;"></div>
+  </div>
+
+  <!-- COMMENTARY -->
+  <div id="p-commentary" class="panel">
+    <p class="idle-msg" id="coIdle">Upload a file to generate the construction commentary.</p>
+    <div id="coResult" style="display:none;"></div>
+  </div>
+
+</div>
+
+<script>
+/* ── State ── */
+let apiKey = (localStorage.getItem('sa_or_key') || '').trim();
+let selectedModel = localStorage.getItem('sa_or_model') || 'anthropic/claude-sonnet-4.5';
+// Force any old/invalid saved model to a current, compliant one (retired ids were 404-ing).
+const _okModels = ['anthropic/claude-sonnet-4.5', 'anthropic/claude-opus-4.8'];
+if (!_okModels.includes(selectedModel)) { selectedModel = 'anthropic/claude-sonnet-4.5'; localStorage.setItem('sa_or_model', selectedModel); }
+let D = null, confirmed = {}, fmt = 'grid';
+
+const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+/* ── Modal ── */
+function openModal(){
+  var m = document.getElementById('apiModal');
+  var ki = document.getElementById('apiKeyInput');
+  var sel = document.getElementById('modelSelect');
+  m.classList.add('open');
+  if(ki) ki.value = apiKey || '';
+  if(sel) sel.value = selectedModel;
+}
+function closeModal(){
+  document.getElementById('apiModal').classList.remove('open');
+}
+function saveApiKey(){
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if(!k || !k.startsWith('sk-or-')){
+    alert('Please enter a valid OpenRouter key beginning with sk-or-');
+    return;
+  }
+  apiKey = k;
+  selectedModel = document.getElementById('modelSelect').value;
+  localStorage.setItem('sa_or_key', k);
+  localStorage.setItem('sa_or_model', selectedModel);
+  const btn = document.getElementById('apiBtn');
+  btn.textContent = 'Key ✓';
+  btn.classList.add('key-configured');
+  closeModal();
+}
+
+/* ── Tabs ── */
+function goTab(id, btn){
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('p-' + id).classList.add('active');
+}
+
+/* ── Format toggle ── */
+function setFmt(f){
+  fmt = f;
+  document.getElementById('fmtGrid').classList.toggle('sel', f === 'grid');
+  document.getElementById('fmtText').classList.toggle('sel', f === 'text');
+}
+
+/* ── Reset ── */
+function resetAll(){
+  D = null; confirmed = {};
+  document.getElementById('ccUpload').style.display = 'block';
+  document.getElementById('ccLoading').style.display = 'none';
+  document.getElementById('ccConfirm').style.display = 'none';
+  document.getElementById('ccError').style.display = 'none';
+  document.getElementById('ccResult').style.display = 'none';
+  var sb=document.getElementById('saveBtn'); if(sb){sb.disabled=true;sb.title='Load a file to enable Save';}
+  var eb=document.getElementById('exportBtn'); if(eb){eb.disabled=true;eb.title='Load a file to enable Export';}
+  document.getElementById('lsIdle').style.display = 'block';
+  document.getElementById('lsResult').style.display = 'none';
+  document.getElementById('anIdle').style.display = 'block';
+  document.getElementById('anResult').style.display = 'none';
+  document.getElementById('coIdle').style.display = 'block';
+  document.getElementById('coResult').style.display = 'none';
+  document.getElementById('songBlock').classList.remove('loaded');
+  document.getElementById('songName').textContent = '—';
+  document.getElementById('songDetail').textContent = 'No file loaded';
+  document.getElementById('sbChords').innerHTML = '<p style="font-size:11px;color:var(--text3);font-weight:300;line-height:1.6;">Load a file to see chord keyboards.</p>';
+}
+
+function showLoad(msg){
+  document.getElementById('ccUpload').style.display = 'none';
+  document.getElementById('ccLoading').style.display = 'block';
+  document.getElementById('ccConfirm').style.display = 'none';
+  document.getElementById('ccError').style.display = 'none';
+  document.getElementById('ccResult').style.display = 'none';
+  document.getElementById('loadMsg').textContent = msg || 'Reading file…';
+}
+
+function showError(msg){
+  document.getElementById('ccUpload').style.display = 'none';
+  document.getElementById('ccLoading').style.display = 'none';
+  document.getElementById('ccConfirm').style.display = 'none';
+  document.getElementById('ccResult').style.display = 'none';
+  document.getElementById('ccError').style.display = 'block';
+  let headline = msg || 'An unexpected error occurred.';
+  let hint = '';
+  if(msg && (msg.toLowerCase().includes('no endpoints') || msg.toLowerCase().includes('zdr'))){
+    headline = 'No ZDR-compatible endpoint found for this model.';
+    hint = 'Your account enforces Zero Data Retention. Try a Claude or OpenAI model — these are reliably ZDR-compatible. Click "Change model / key" to switch.';
+  } else if(msg && (msg.includes('401') || msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('unauthorized'))){
+    headline = 'API key invalid or expired.';
+    hint = 'Check your OpenRouter key and try again.';
+  } else if(msg && (msg.includes('402') || msg.toLowerCase().includes('insufficient'))){
+    headline = 'Insufficient OpenRouter credits.';
+    hint = 'Top up your account at openrouter.ai.';
+  } else if(msg && (msg.includes('429') || msg.toLowerCase().includes('rate limit'))){
+    headline = 'Rate limit reached.';
+    hint = 'Wait a moment then try again.';
+  } else if(msg && (msg.toLowerCase().includes('context') || msg.toLowerCase().includes('too large'))){
+    headline = 'File too large for this model.';
+    hint = 'Try a model with a larger context window such as Claude Sonnet or GPT-4o.';
+  }
+  document.getElementById('errHeadline').textContent = headline;
+  document.getElementById('errHint').textContent = hint;
+}
+
+function updateHeader(d){
+  document.getElementById('songBlock').classList.add('loaded');
+  document.getElementById('songName').textContent = d.title + (d.composer ? ' — ' + d.composer : '');
+  document.getElementById('songDetail').textContent = [d.key, d.tempo, d.timeSignature, d.feel].filter(Boolean).join(' · ');
+}
+
+function renderAll(d){
+  D = d;
+  updateHeader(d);
+  renderChart(d);
+  renderLS(d);
+  renderAnalysis(d);
+  renderCommentary(d);
+  showActionButtons();
+}
+
+function renderChart(d){
+  document.getElementById('ccLoading').style.display = 'none';
+  document.getElementById('ccUpload').style.display = 'none';
+  document.getElementById('ccConfirm').style.display = 'none';
+  document.getElementById('ccResult').style.display = 'block';
+  let h = '';
+  if(d.hasIssues && d.issues && d.issues.length){
+    h += '<div class="warn-banner">' + d.issues.length + ' chord(s) confirmed manually — shown with a red left border.</div>';
+  }
+  d.sections.forEach(sec => {
+    h += '<div class="section-block"><div class="section-head"><span class="section-name">' + sec.label + '</span><span class="section-bars">bars ' + sec.bars + '</span></div><div class="chord-grid">';
+    sec.chords.forEach(c => {
+      const ch = confirmed[c.bar] || c.chord;
+      const tp = confirmed[c.bar] ? 'uncertain' : c.type;
+      const chEsc = JSON.stringify(ch).replace(/"/g, '&quot;');
+      h += '<div class="chord-card ' + tp + '" title="Click to view chord inversions" style="grid-column:span ' + (c.span||1) + ';position:relative;" onclick="showChordPiano(' + chEsc + ')">'
+         +   '<div class="cc-name">' + ch + '</div>'
+         +   '<div class="cc-num ' + tp + '">' + c.roman + '</div>'
+         +   '<button class="cc-edit-btn" onclick="event.stopPropagation();startChordEdit(' + c.bar + ',' + chEsc + ',event)" title="Edit chord name">✎</button>'
+         + '</div>';
+    });
+    h += '</div></div>';
+  });
+  document.getElementById('chartBody').innerHTML = h;
+  buildSidebarPalette();
+  buildSidebarChords(d);
+}
+
+function renderLS(d){
+  document.getElementById('lsIdle').style.display = 'none';
+  document.getElementById('lsResult').style.display = 'block';
+  document.getElementById('lsTitle').textContent = d.title + ' — Lead sheet';
+  let h = '', bar = 1;
+  d.sections.forEach(sec => {
+    h += '<div class="ls-sec-head">' + sec.label + ' &nbsp; bars ' + sec.bars + '</div>';
+    sec.chords.forEach(c => {
+      const ch = confirmed[c.bar] || c.chord;
+      h += '<div class="ls-row"><span class="ls-barnum">' + bar + '</span><span class="ls-chord">' + ch + '</span><span class="ls-num">' + c.roman + '</span><span class="ls-note">' + (c.note||'') + '</span></div>';
+      bar += (c.span || 1);
+    });
+  });
+  document.getElementById('lsBody').innerHTML = h;
+}
+
+function renderAnalysis(d){
+  document.getElementById('anIdle').style.display = 'none';
+  const el = document.getElementById('anResult');
+  el.style.display = 'block';
+  el.innerHTML = (d.analysis||[]).map(b =>
+    '<div class="an-block"><div class="an-heading">' + b.heading + '</div><div><p class="an-body">' + b.body + '</p>' +
+    (b.tags && b.tags.length ? '<div class="an-tags">' + b.tags.map(t => '<span class="an-tag">' + t + '</span>').join('') + '</div>' : '') +
+    '</div></div>'
+  ).join('');
+}
+
+function renderCommentary(d){
+  document.getElementById('coIdle').style.display = 'none';
+  const el = document.getElementById('coResult');
+  el.style.display = 'block';
+  el.innerHTML = (d.commentary||[]).map(b =>
+    '<div class="an-block"><div class="an-heading">' + b.heading + '</div><p class="an-body">' + b.body + '</p></div>'
+  ).join('');
+}
+
+function buildConfirm(d){
+  document.getElementById('confirmList').innerHTML = (d.issues||[]).map((iss,i) =>
+    '<div class="confirm-row"><div class="confirm-row-label"><p>' + iss.chord + ' <span style="font-weight:300;color:var(--text2);">· bar ' + iss.bar + ' · ' + iss.section + '</span></p><small>' + iss.note + '</small></div>' +
+    '<input class="ci" type="text" id="ci' + i + '" value="' + iss.chord + '" data-bar="' + iss.bar + '"></div>'
+  ).join('');
+  document.getElementById('ccLoading').style.display = 'none';
+  document.getElementById('ccConfirm').style.display = 'block';
+}
+
+function acceptConfirm(){
+  document.querySelectorAll('[id^="ci"]').forEach(inp => {
+    const b = parseInt(inp.dataset.bar);
+    if(inp.value) confirmed[b] = inp.value;
+  });
+  renderAll(D);
+}
+
+/* ── PDF text extraction via PDF.js ── */
+async function extractPDFText(file) {
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  if (!pdfjsLib) throw new Error('PDF.js not loaded.');
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let out = '';
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page    = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    let lastY = null;
+    content.items.forEach(item => {
+      if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) out += '\n';
+      out += item.str;
+      lastY = item.transform[5];
+    });
+    out += '\n\n';
+  }
+  return out.trim();
+}
+
+/* ── File analysis ── */
+async function analyseFile(file){
+  if(!apiKey){ openModal(); return; }
+  showLoad('Reading file…');
+  let ticker = 0;
+  const loadSteps = ['Reading file…','Extracting text…','Analysing chords…','Building views…'];
+  const t = setInterval(() => {
+    document.getElementById('loadMsg').textContent = loadSteps[Math.min(ticker++, loadSteps.length - 1)];
+  }, 1000);
+
+  const JSON_SCHEMA = '{"title":"","composer":"","key":"","tempo":"","timeSignature":"","feel":"","hasIssues":false,"issues":[{"bar":0,"section":"","chord":"","note":""}],"sections":[{"label":"","bars":"","chords":[{"chord":"","roman":"","type":"major|minor|chromatic|uncertain|neutral","span":1,"bar":0,"note":""}]}],"analysis":[{"heading":"","body":"","tags":[]}],"commentary":[{"heading":"","body":""}]}';
+
+  const RULES = '\n\nRules:\n- Use ONLY the chords shown in the score text. Do not invent or substitute chords.\n- Detect key from key signature or chord pattern.\n- "span" = bars the chord lasts. "bar" = bar number starting at 1.\n- Roman numerals: uppercase=major, lowercase=minor, o=dim, \u00f8=half-dim, chrom.=non-diatonic.\n- "type": major, minor, chromatic, uncertain, or neutral.\n- 4 analysis blocks: Key & Mode, Harmonic Language, Song Structure, Notable Moments.\n- 2 commentary blocks: Structure, Genre & Style.\n- Each body under 35 words. Tags: 3\u20135 items.\n- Output must be complete valid JSON \u2014 do not truncate.';
+
+  const isXML = /\.(xml)$/i.test(file.name);
+
+  try {
+    let messageContent;
+
+    if (isXML) {
+      /* ── Plain MusicXML: read as text ── */
+      const xmlText = await file.text();
+      messageContent = 'Analyse this MusicXML score. Return ONLY valid JSON matching this schema:\n' + JSON_SCHEMA + RULES + '\n\nMusicXML:\n' + xmlText;
+
+    } else {
+      /* ── PDF: extract text with PDF.js first ── */
+      document.getElementById('loadMsg').textContent = 'Extracting text from PDF…';
+      let pdfText = '';
+      try { pdfText = await extractPDFText(file); } catch(e) { pdfText = ''; }
+
+      // Normalise Unicode music symbols to ASCII so the AI receives standard notation.
+      // PDF.js often extracts ♭ as the Unicode flat sign (U+266D) rather than the letter 'b',
+      // which causes the AI to return 'E' instead of 'Eb', 'B' instead of 'Bb', etc.
+      pdfText = pdfText
+        .replace(/♭/g, 'b')    // U+266D flat sign  → b
+        .replace(/♯/g, '#')    // U+266F sharp sign → #
+        .replace(/𝄫/g, 'bb')   // U+1D12B double flat
+        .replace(/𝄪/g, '##');  // U+1D12A double sharp
+
+      if (pdfText.length >= 30) {
+        /* Text-based PDF — most reliable path: send extracted text as prompt */
+        messageContent = 'Below is text extracted from a music chord chart or score PDF. Analyse it and return ONLY valid JSON matching this schema:\n' + JSON_SCHEMA + RULES + '\n\nExtracted score text:\n' + pdfText;
+
+      } else {
+        /* Scanned / image PDF — fall back to vision */
+        document.getElementById('loadMsg').textContent = 'No text found — using vision…';
+        const b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload  = ev => res(ev.target.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(file);
+        });
+        const visionPrompt = 'Analyse the music score visible in this PDF image. Return ONLY valid JSON matching this schema:\n' + JSON_SCHEMA + RULES;
+        const isClaude = selectedModel.startsWith('anthropic/');
+        messageContent = isClaude
+          ? [{ type:'text', text: visionPrompt },
+             { type:'document', source:{ type:'base64', media_type:'application/pdf', data: b64 } }]
+          : [{ type:'text', text: visionPrompt },
+             { type:'image_url', image_url:{ url:'data:application/pdf;base64,' + b64 } }];
+      }
+    }
+
+    document.getElementById('loadMsg').textContent = 'Analysing chords…';
+
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+        'HTTP-Referer': window.location.href,
+        'X-Title': 'Score Analyser'
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        max_tokens: 6000,
+        provider: { data_collection: 'deny' },
+        messages: [{ role: 'user', content: messageContent }]
+      })
+    });
+
+    const json = await resp.json();
+    clearInterval(t);
+
+    if (json.error) throw new Error(json.error.message || json.error.code || JSON.stringify(json.error));
+
+    const raw     = json.choices[0].message.content;
+    const cleaned = raw.replace(/```json|```/g, '').trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch(e) {
+      throw new Error('Response was cut off — switch to Claude Sonnet or increase the token limit.');
+    }
+
+    D = parsed;
+    if (parsed.hasIssues && parsed.issues && parsed.issues.length) { buildConfirm(parsed); }
+    else { renderAll(parsed); }
+
+  } catch(err) {
+    clearInterval(t);
+    showError(err.message);
+  }
+}
+
+/* ── Export ── */
+function exportLS(){
+  if(!D) return;
+  let lines = [D.title, 'By ' + (D.composer||''), '', 'Key: ' + D.key + ' | Tempo: ' + D.tempo + ' | Time: ' + D.timeSignature, ''];
+  let bar = 1;
+  D.sections.forEach(sec => {
+    lines.push('--- ' + sec.label.toUpperCase() + ' (bars ' + sec.bars + ') ---');
+    sec.chords.forEach(c => {
+      lines.push('  Bar ' + String(bar).padEnd(4) + (confirmed[c.bar]||c.chord).padEnd(18) + c.roman);
+      bar += (c.span || 1);
+    });
+    lines.push('');
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], {type:'text/plain'}));
+  a.download = (D.title||'lead-sheet') + '.txt';
+  a.click();
+}
+
+function doExport(){
+  if(!D) return;
+  const w = window.open('', '_blank');
+  if(!w) return;
+  let body = '<h1 style="font-family:Georgia,serif;font-size:26px;font-weight:400;margin:0 0 4px;">' + D.title + '</h1>';
+  body += '<p style="font-size:12px;color:#888;margin:0 0 28px;font-family:sans-serif;">' + (D.composer||'') + ' &nbsp;·&nbsp; ' + D.key + ' &nbsp;·&nbsp; ' + D.tempo + ' &nbsp;·&nbsp; ' + D.timeSignature + '</p>';
+  if(fmt === 'text'){
+    let bar = 1;
+    D.sections.forEach(sec => {
+      body += '<p style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#999;border-bottom:1px solid #eee;padding-bottom:4px;margin:18px 0 8px;font-family:sans-serif;">' + sec.label + ' — bars ' + sec.bars + '</p>';
+      sec.chords.forEach(c => {
+        body += '<p style="font-family:monospace;font-size:13px;margin:5px 0;">Bar&nbsp;' + String(bar).padEnd(4) + '&nbsp;&nbsp;<strong>' + (confirmed[c.bar]||c.chord) + '</strong>&nbsp;&nbsp;<span style="color:#888;">' + c.roman + '</span></p>';
+        bar += (c.span||1);
+      });
+    });
+  } else {
+    D.sections.forEach(sec => {
+      body += '<p style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#999;border-bottom:1px solid #eee;padding-bottom:4px;margin:18px 0 8px;font-family:sans-serif;">' + sec.label + ' — bars ' + sec.bars + '</p>';
+      body += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:8px;">';
+      sec.chords.forEach(c => {
+        const ch = confirmed[c.bar]||c.chord;
+        const tp = confirmed[c.bar] ? 'uncertain' : c.type;
+        const bl = tp==='minor'?'3px solid #588abc':tp==='chromatic'?'3px solid #cc8033':tp==='uncertain'?'3px solid #c46968':'1px solid #e5e3df';
+        body += '<div style="grid-column:span ' + (c.span||1) + ';border:1px solid #e5e3df;border-left:' + bl + ';border-radius:3px;padding:9px 11px;"><p style="font-family:Georgia,serif;font-size:15px;margin:0 0 3px;">' + ch + '</p><p style="font-size:10px;color:#999;margin:0;">' + c.roman + '</p></div>';
+      });
+      body += '</div>';
+    });
+  }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + D.title + '</title><style>body{font-family:Georgia,serif;margin:48px;color:#111;max-width:900px;}@media print{body{margin:28px;}}</style></head><body>' + body + '<p style="font-size:10px;color:#ccc;margin-top:40px;font-family:sans-serif;">Score·Analyser</p></body></html>');
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+}
+
+/* ── Chord edit overlay ── */
+function startChordEdit(bar, currentChord, event) {
+  const overlay = document.getElementById('chordEditOverlay');
+  const input   = document.getElementById('chordEditInput');
+  input.value   = currentChord;
+  overlay._bar  = bar;
+  // Position below the clicked chord card
+  const rect = event.target.closest('.chord-card').getBoundingClientRect();
+  const left = Math.min(rect.left, window.innerWidth - 210);
+  const top  = Math.min(rect.bottom + 6, window.innerHeight - 120);
+  overlay.style.left    = left + 'px';
+  overlay.style.top     = top  + 'px';
+  overlay.style.display = 'block';
+  input.focus();
+  input.select();
+}
+function saveChordEdit() {
+  const overlay = document.getElementById('chordEditOverlay');
+  const input   = document.getElementById('chordEditInput');
+  const bar     = overlay._bar;
+  const val     = input.value.trim();
+  if (val) {
+    confirmed[bar] = val;
+  } else {
+    delete confirmed[bar]; // empty input clears any manual override
+  }
+  closeChordEdit();
+  if (D) { renderChart(D); renderLS(D); buildSidebarChords(D); }
+}
+function closeChordEdit() {
+  document.getElementById('chordEditOverlay').style.display = 'none';
+}
+
+/* ── Drag and drop ── */
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); const f = e.dataTransfer.files[0]; if(f) analyseFile(f); });
+
+/* ── Close dropdowns and edit overlay on outside click ── */
+document.addEventListener('click', e => {
+  if(!e.target.closest('.dropdown')) closeAllDropdowns();
+  if(!e.target.closest('.chord-edit-overlay') && !e.target.closest('.cc-edit-btn')) closeChordEdit();
+});
+
+/* ── Dropdown helpers ── */
+function toggleDropdown(id){
+  const menu = document.getElementById(id + 'Menu');
+  const isOpen = menu.classList.contains('open');
+  closeAllDropdowns();
+  if(!isOpen) menu.classList.add('open');
+}
+function closeAllDropdowns(){
+  document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('open'));
+}
+
+/* ── Songs list in localStorage ── */
+function getSongs(){
+  try{ return JSON.parse(localStorage.getItem('sa_songs') || '[]'); }
+  catch(e){ return []; }
+}
+function putSongs(arr){
+  localStorage.setItem('sa_songs', JSON.stringify(arr));
+}
+function updateStorageCount(){
+  const arr = getSongs();
+  const el = document.getElementById('storageCount');
+  if(el) el.textContent = arr.length ? arr.length + ' song' + (arr.length>1?'s':'') + ' saved' : 'No songs saved';
+}
+function renderSongsList(){
+  const arr = getSongs();
+  const menu = document.getElementById('songsDropdownMenu');
+  if(!arr.length){
+    menu.innerHTML = '<div class="dropdown-menu-item muted">No songs saved yet</div>';
+    return;
+  }
+  menu.innerHTML = arr.map((s,i) =>
+    '<button class="dropdown-menu-item" onclick="loadSong(' + i + ');closeAllDropdowns();">' +
+    '<strong style="font-size:12px;">' + s.title + (s.composer?' — '+s.composer:'') + '</strong>' +
+    '<span style="display:block;font-size:10px;color:var(--text3);margin-top:2px;">' + (s.key||'') + (s.tempo?' · '+s.tempo:'') + '</span>' +
+    '</button>'
+  ).join('') +
+  '<div style="border-top:1px solid var(--border);padding:6px 8px;display:flex;justify-content:flex-end;">' +
+  '<button class="dropdown-menu-item danger" style="font-size:11px;padding:6px 10px;width:auto;" onclick="clearAllSongs()">Clear all</button>' +
+  '</div>';
+}
+
+function saveSong(){
+  if(!D){ alert('No analysis loaded yet. Upload and analyse a score first.'); return; }
+  const arr = getSongs();
+  const existing = arr.findIndex(s => s.title === D.title && s.composer === D.composer);
+  const entry = { title: D.title, composer: D.composer||'', key: D.key||'', tempo: D.tempo||'', savedAt: Date.now(), data: D, confirmed: confirmed };
+  if(existing >= 0){
+    if(!confirm('A saved entry for "' + D.title + '" already exists. Replace it?')) return;
+    arr[existing] = entry;
+  } else {
+    arr.unshift(entry);
+  }
+  putSongs(arr);
+  updateStorageCount();
+  renderSongsList();
+  const btn = document.getElementById('saveBtn');
+  const orig = btn.textContent;
+  btn.textContent = 'Saved ✓';
+  setTimeout(() => { btn.textContent = orig; }, 1800);
+}
+
+function loadSong(idx){
+  const arr = getSongs();
+  const entry = arr[idx];
+  if(!entry) return;
+  confirmed = entry.confirmed || {};
+  renderAll(entry.data);
+}
+
+function clearAllSongs(){
+  if(!confirm('Delete all saved songs? This cannot be undone.')) return;
+  localStorage.removeItem('sa_songs');
+  updateStorageCount();
+  renderSongsList();
+}
+
+function backupToFile(){
+  const arr = getSongs();
+  if(!arr.length){ alert('No songs saved to back up.'); return; }
+  const json = JSON.stringify({ version: 1, songs: arr }, null, 2);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([json], {type:'application/json'}));
+  a.download = 'ScoreAnalyser_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  updateStorageCount();
+}
+
+function restoreFromFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const obj = JSON.parse(e.target.result);
+      const incoming = obj.songs || obj;
+      if(!Array.isArray(incoming)){ alert('Invalid backup file.'); return; }
+      const existing = getSongs();
+      let added = 0, skipped = 0;
+      incoming.forEach(function(s){
+        const dup = existing.find(function(e){ return e.title === s.title && e.composer === s.composer; });
+        if(dup){ skipped++; } else { existing.unshift(s); added++; }
+      });
+      putSongs(existing);
+      updateStorageCount();
+      renderSongsList();
+      alert('Restored ' + added + ' song(s). ' + (skipped ? skipped + ' duplicate(s) skipped.' : ''));
+    } catch(err){
+      alert('Could not read backup file: ' + err.message);
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function showActionButtons(){
+  var sb = document.getElementById('saveBtn');
+  var eb = document.getElementById('exportBtn');
+  if(sb){ sb.disabled = false; sb.title = 'Save this analysis'; }
+  if(eb){ eb.disabled = false; eb.title = 'Export analysis'; }
+}
+
+function openExportModal(){
+  document.getElementById('exportModal').classList.add('open');
+}
+function closeExportModal(){
+  document.getElementById('exportModal').classList.remove('open');
+  document.getElementById('exportProgress').style.display = 'none';
+}
+
+function doFullExport(type){
+  if(!D){ closeExportModal(); return; }
+  if(type === 'pdf'){
+    closeExportModal();
+    buildFullPDF();
+  } else {
+    document.getElementById('exportProgress').style.display = 'block';
+    setTimeout(() => { buildDocx(); closeExportModal(); }, 200);
+  }
+}
+
+function buildFullPDF(){
+  const w = window.open('', '_blank');
+  if(!w) return;
+  let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + D.title + '</title>';
+  html += '<style>body{font-family:Georgia,serif;margin:48px;color:#111;max-width:900px;}';
+  html += 'h1{font-size:28px;font-weight:400;margin:0 0 4px;}';
+  html += '.meta{font-size:12px;color:#888;margin:0 0 32px;font-family:sans-serif;}';
+  html += 'h2{font-family:Georgia,serif;font-size:16px;font-weight:400;border-bottom:1px solid #eee;padding-bottom:6px;margin:32px 0 16px;letter-spacing:0.01em;}';
+  html += '.sec-lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#999;border-bottom:1px solid #eee;padding-bottom:4px;margin:16px 0 8px;font-family:sans-serif;}';
+  html += '.cg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;}';
+  html += '.cc{border:1px solid #ddd;border-radius:3px;padding:8px 10px;}.cc.minor{border-left:3px solid #588abc;}.cc.chromatic{border-left:3px solid #cc8033;}.cc.uncertain{border-left:3px solid #c46968;}';
+  html += '.cn{font-family:Georgia,serif;font-size:14px;margin:0 0 3px;}.cr{font-size:10px;color:#999;margin:0;}';
+  html += '.ls-row{display:grid;grid-template-columns:36px 130px 90px 1fr;padding:7px 0;border-bottom:1px solid #eee;font-size:13px;}';
+  html += '.an-block{display:grid;grid-template-columns:160px 1fr;gap:2rem;padding:12px 0;border-bottom:1px solid #eee;}';
+  html += '.an-h{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#888;font-family:sans-serif;padding-top:2px;}';
+  html += '.an-b{font-size:13px;color:#444;line-height:1.7;}.tag{font-size:10px;border:1px solid #ddd;border-radius:20px;padding:2px 8px;margin:4px 3px 0 0;display:inline-block;color:#888;}';
+  html += '@media print{body{margin:24px;}h2{page-break-before:always;}h2:first-of-type{page-break-before:avoid;}}';
+  html += '</style></head><body>';
+  html += '<h1>' + D.title + '</h1>';
+  html += '<p class="meta">' + [D.composer, D.key, D.tempo, D.timeSignature, D.feel].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</p>';
+  html += '<h2>Chord chart</h2>';
+  D.sections.forEach(sec => {
+    html += '<div class="sec-lbl">' + sec.label + ' — bars ' + sec.bars + '</div><div class="cg">';
+    sec.chords.forEach(c => {
+      const ch = confirmed[c.bar]||c.chord;
+      const tp = confirmed[c.bar]?'uncertain':c.type;
+      html += '<div class="cc ' + tp + '" style="grid-column:span '+(c.span||1)+'"><p class="cn">' + ch + '</p><p class="cr">' + c.roman + '</p></div>';
+    });
+    html += '</div>';
+  });
+  html += '<h2>Lead sheet</h2>';
+  let bar = 1;
+  D.sections.forEach(sec => {
+    html += '<div class="sec-lbl">' + sec.label + ' — bars ' + sec.bars + '</div>';
+    sec.chords.forEach(c => {
+      const ch = confirmed[c.bar]||c.chord;
+      html += '<div class="ls-row"><span style="color:#aaa;font-size:10px;">' + bar + '</span><span style="font-family:Georgia,serif;font-size:14px;">' + ch + '</span><span style="font-size:11px;color:#888;">' + c.roman + '</span><span style="font-size:11px;color:#bbb;font-style:italic;">' + (c.note||'') + '</span></div>';
+      bar += (c.span||1);
+    });
+  });
+  html += '<h2>Harmonic analysis</h2>';
+  (D.analysis||[]).forEach(b => {
+    html += '<div class="an-block"><div class="an-h">' + b.heading + '</div><div><p class="an-b">' + b.body + '</p>';
+    if(b.tags&&b.tags.length) html += '<div style="margin-top:8px;">' + b.tags.map(t=>'<span class="tag">'+t+'</span>').join('') + '</div>';
+    html += '</div></div>';
+  });
+  html += '<h2>Construction commentary</h2>';
+  (D.commentary||[]).forEach(b => {
+    html += '<div class="an-block"><div class="an-h">' + b.heading + '</div><p class="an-b">' + b.body + '</p></div>';
+  });
+  html += '<p style="font-size:10px;color:#ccc;margin-top:48px;font-family:sans-serif;">Generated by Score·Analyser</p>';
+  html += '</body></html>';
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+}
+
+function buildDocx(){
+  if(!D) return;
+  let rtf = '{\rtf1\ansi\deff0';
+  rtf += '{\fonttbl{\f0\froman Georgia;}{\f1\fswiss Arial;}}';
+  rtf += '{\colortbl;\red204\green128\blue51;\red55\green55\blue55;\red153\green153\blue153;}';
+  rtf += '\margl1440\margr1440\margt1440\margb1440';
+  function rtfEsc(s){ if(!s) return ''; var r=String(s).replace(/\\/g,'\\\\'); r=r.replace(/\{/g,'\\{'); r=r.replace(/\}/g,'\\}'); r=r.replace(/[^\x00-\x7F]/g,function(ch){return '\\u'+ch.charCodeAt(0)+'?';}); return r; }
+  rtf += '\pard\f0\fs48\b ' + rtfEsc(D.title) + '\b0\par';
+  rtf += '\f1\fs20\cf2 ' + rtfEsc([D.composer,D.key,D.tempo,D.timeSignature,D.feel].filter(Boolean).join('  ·  ')) + '\cf0\par\par';
+  function sectionHead(title){
+    rtf += '\pard\f0\fs32\b ' + rtfEsc(title) + '\b0\par';
+    rtf += '\pard\f1\fs18\cf3 ________________________________\cf0\par\par';
+  }
+  sectionHead('Chord chart');
+  D.sections.forEach(sec => {
+    rtf += '\pard\f1\fs18\b\cf1 ' + rtfEsc(sec.label.toUpperCase()) + ' — bars ' + rtfEsc(sec.bars) + '\b0\cf0\par';
+    sec.chords.forEach(c => {
+      const ch = confirmed[c.bar]||c.chord;
+      rtf += '\pard\f0\fs24\b ' + rtfEsc(ch) + '\b0  \f1\fs18\cf2 ' + rtfEsc(c.roman) + '\cf0\par';
+    });
+    rtf += '\par';
+  });
+  sectionHead('Lead sheet');
+  let bar = 1;
+  D.sections.forEach(sec => {
+    rtf += '\pard\f1\fs18\b\cf1 ' + rtfEsc(sec.label.toUpperCase()) + '\b0\cf0\par';
+    sec.chords.forEach(c => {
+      const ch = confirmed[c.bar]||c.chord;
+      rtf += '\pard\f1\fs20 Bar ' + bar + '  \f0\fs22\b ' + rtfEsc(ch) + '\b0  \f1\fs18\cf2 ' + rtfEsc(c.roman) + '\cf0\par';
+      bar += (c.span||1);
+    });
+    rtf += '\par';
+  });
+  sectionHead('Harmonic analysis');
+  (D.analysis||[]).forEach(b => {
+    rtf += '\pard\f1\fs18\b ' + rtfEsc(b.heading) + '\b0\par';
+    rtf += '\pard\f1\fs20\cf2 ' + rtfEsc(b.body) + '\cf0\par';
+    if(b.tags&&b.tags.length) rtf += '\pard\f1\fs16\cf3 ' + rtfEsc(b.tags.join('  ·  ')) + '\cf0\par';
+    rtf += '\par';
+  });
+  sectionHead('Construction commentary');
+  (D.commentary||[]).forEach(b => {
+    rtf += '\pard\f1\fs18\b ' + rtfEsc(b.heading) + '\b0\par';
+    rtf += '\pard\f1\fs20\cf2 ' + rtfEsc(b.body) + '\cf0\par\par';
+  });
+  rtf += '}';
+  const blob = new Blob([rtf], {type: 'application/rtf'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (D.title||'score-analysis').replace(/[^a-z0-9]/gi,'_') + '.rtf';
+  a.click();
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PIANO CHORD VISUALISER
+   ════════════════════════════════════════════════════════════════════════════
+   Terracotta palette — 7 shades, one per scale degree.
+   Degree 1 (root) is darkest; graduating lighter to degree 7.
+   Colour is assigned by the note's ROLE within the chord, not its pitch class,
+   so the same note (e.g. C) will appear in different shades in different chords.
+   ════════════════════════════════════════════════════════════════════════════ */
+(function(){
+
+  /* ── Tone palette ── */
+  const DEG = {
+    1: { bg:'#311f0c', label:'Root'      },
+    2: { bg:'#523314', label:'2nd/Sus2'  },
+    3: { bg:'#7a4d1f', label:'3rd'       },
+    4: { bg:'#a36629', label:'4th/Sus4'  },
+    5: { bg:'#cc8033', label:'5th'       },
+    6: { bg:'#d6995c', label:'6th'       },
+    7: { bg:'#e0b385', label:'7th'       },
+  };
+
+  /* ── Note / key constants ── */
+  const WHITE      = ['C','D','E','F','G','A','B'];
+  // Which white keys have a black key to their immediate right?
+  const BLACK_AFTER = { C:'C#', D:'Eb', F:'F#', G:'Ab', A:'Bb' };
+  // Semitone value for each note name
+  const SEMI = {
+    C:0,'C#':1,Db:1, D:2,'D#':3,Eb:3, E:4, F:5,'F#':6,Gb:6,
+    G:7,'G#':8,Ab:8, A:9,'A#':10,Bb:10, B:11
+  };
+  // Preferred enharmonic names in chromatic order (matches BLACK_AFTER spelling)
+  const CHROMATIC  = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+  // Semitone → white key index within octave (black keys map to left neighbour)
+  const SEMI_TO_WK = [0,0,1,1,2,3,3,4,4,5,5,6];
+  const IS_BLACK   = new Set([1,3,6,8,10]);
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     piano(litNotes, startNote, startOct, numKeys, ww, wh, bw, bh)
+     Renders a zoomed keyboard as an HTML string.
+     litNotes  = [{n:'A', oct:3, deg:1}, …]
+     startNote = first white key shown (e.g. 'F')
+     startOct  = octave of startNote
+     numKeys   = number of white keys to display
+     ww/wh     = white key width/height (px)
+     bw/bh     = black key width/height (px)
+     ───────────────────────────────────────────────────────────────────────── */
+  function piano(litNotes, startNote, startOct, numKeys, ww, wh, bw, bh) {
+    // Build lookup: 'A3' → DEG shade object
+    const lit = {};
+    litNotes.forEach(t => { lit[t.n + t.oct] = DEG[t.deg]; });
+
+    const startIdx = startOct * 7 + WHITE.indexOf(startNote);
+    const fzW = Math.max(7,  Math.floor(ww * 0.32));
+    const fzB = Math.max(6,  Math.floor(bw * 0.44));
+    const TW  = numKeys * ww;
+
+    let h = `<div style="position:relative;height:${wh + 2}px;width:${TW}px;">`;
+
+    for (let i = 0; i < numKeys; i++) {
+      const abs     = startIdx + i;
+      const noteIdx = ((abs % 7) + 7) % 7;
+      const oct     = Math.floor(abs / 7);
+      const n       = WHITE[noteIdx];
+      const key     = n + oct;
+      const shade   = lit[key];
+      const isLit   = !!shade;
+      const bg      = isLit ? shade.bg : '#fff';
+      const bc      = isLit ? shade.bg : '#d0cec9';
+      const lx      = i * ww;
+
+      // White key
+      h += `<div style="position:absolute;left:${lx}px;width:${ww-1}px;height:${wh}px;`
+         + `background:${bg};border:1px solid ${bc};border-radius:0 0 4px 4px;z-index:1;">`;
+      if (isLit) {
+        h += `<span style="position:absolute;bottom:5px;left:50%;transform:translateX(-50%);`
+           + `font-size:${fzW}px;font-weight:700;color:#fff;font-family:'Helvetica Neue',Arial,sans-serif;`
+           + `white-space:nowrap;">${n}</span>`;
+      }
+      h += `</div>`;
+
+      // Black key to the right of this white key (if applicable and in range)
+      if (BLACK_AFTER[n] && i < numKeys - 1) {
+        const bn     = BLACK_AFTER[n];
+        const bOct   = oct; // black key shares octave with white key to its left
+        const bKey   = bn + bOct;
+        const bShade = lit[bKey];
+        const bLit   = !!bShade;
+        const bbg    = bLit ? bShade.bg : '#282828';
+        const bbc    = bLit ? bShade.bg : '#111';
+        const blx    = Math.round((i + 1) * ww - bw / 2);
+
+        h += `<div style="position:absolute;left:${blx}px;width:${bw}px;height:${bh}px;`
+           + `background:${bbg};border:1px solid ${bbc};border-radius:0 0 3px 3px;z-index:2;">`;
+        if (bLit) {
+          h += `<span style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);`
+             + `font-size:${fzB}px;font-weight:700;color:#fff;font-family:'Helvetica Neue',Arial,sans-serif;`
+             + `white-space:nowrap;">${bn}</span>`;
+        }
+        h += `</div>`;
+      }
+    }
+    h += `</div>`;
+    return h;
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     computeRange(litNotes)
+     Given the notes for one inversion (sorted bass → treble),
+     returns the start note / octave / numKeys for a zoomed keyboard.
+     Rule: 2 white keys before the bass, end on or just after the highest note.
+     ───────────────────────────────────────────────────────────────────────── */
+  function computeRange(litNotes) {
+    // Sort by absolute pitch
+    const sorted = [...litNotes].sort((a, b) =>
+      (a.oct * 12 + SEMI[a.n]) - (b.oct * 12 + SEMI[b.n])
+    );
+    const bass = sorted[0];
+    const top  = sorted[sorted.length - 1];
+
+    // White key absolute index of bass (left neighbour for black keys)
+    const bassWk = bass.oct * 7 + SEMI_TO_WK[SEMI[bass.n]];
+    // White key absolute index of top (right neighbour for black keys)
+    const topSemi = SEMI[top.n];
+    const topWk   = top.oct * 7 + SEMI_TO_WK[topSemi] + (IS_BLACK.has(topSemi) ? 1 : 0);
+
+    const startIdx = bassWk - 2;         // 2 white keys of lead-in
+    const endIdx   = topWk;
+    const numKeys  = endIdx - startIdx + 1;
+
+    const startOct  = Math.floor(startIdx / 7);
+    const startNote = WHITE[((startIdx % 7) + 7) % 7];
+
+    return { startNote, startOct, numKeys };
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     buildChordData(chordName)
+     Computes octave-correct note positions for root position + all inversions.
+     Returns an object with inversions array ready for the popup renderer.
+     ───────────────────────────────────────────────────────────────────────── */
+  function buildChordData(chordName) {
+    if (!chordName) return null;
+    // Strip slash bass note (e.g. C/E → just C for chord tones)
+    const base = chordName.split('/')[0].trim();
+    const m = base.match(/^([A-G][#b]?)(.*)/);
+    if (!m) return null;
+    const rootName = m[1];
+    const qual     = m[2].replace(/\s/g, '');
+    const rootSemi = SEMI[rootName];
+    if (rootSemi === undefined) return null;
+
+    // Interval offsets (semitones) and scale degree assignments
+    let intervals, degrees;
+    if      (!qual || qual==='M' || qual==='maj')                 { intervals=[0,4,7];       degrees=[1,3,5];   }
+    else if (qual==='m' || qual==='min' || qual==='-')            { intervals=[0,3,7];       degrees=[1,3,5];   }
+    else if (qual==='maj7'||qual==='M7'||qual==='Δ'||qual==='Δ7'||qual==='△7') { intervals=[0,4,7,11]; degrees=[1,3,5,7]; }
+    else if (qual==='m7'||qual==='min7'||qual==='-7')             { intervals=[0,3,7,10];    degrees=[1,3,5,7]; }
+    else if (qual==='7')                                          { intervals=[0,4,7,10];    degrees=[1,3,5,7]; }
+    else if (qual==='dim'||qual==='°'||qual==='o')                { intervals=[0,3,6];       degrees=[1,3,5];   }
+    else if (qual==='dim7'||qual==='°7'||qual==='o7')             { intervals=[0,3,6,9];     degrees=[1,3,5,7]; }
+    else if (qual==='m7b5'||qual==='m7♭5'||qual==='ø'||qual==='ø7'||qual==='Ø') { intervals=[0,3,6,10]; degrees=[1,3,5,7]; }
+    else if (qual==='sus2')                                       { intervals=[0,2,7];       degrees=[1,2,5];   }
+    else if (qual==='sus4')                                       { intervals=[0,5,7];       degrees=[1,4,5];   }
+    else if (qual==='aug'||qual==='+')                            { intervals=[0,4,8];       degrees=[1,3,5];   }
+    else if (qual==='6')                                          { intervals=[0,4,7,9];     degrees=[1,3,5,6]; }
+    else if (qual==='m6')                                         { intervals=[0,3,7,9];     degrees=[1,3,5,6]; }
+    else if (qual==='add9'||qual==='add2')                        { intervals=[0,4,7,14];    degrees=[1,3,5,2]; }
+    else if (qual==='9')                                          { intervals=[0,4,7,10,14]; degrees=[1,3,5,7,2]; }
+    else if (qual==='m9')                                         { intervals=[0,3,7,10,14]; degrees=[1,3,5,7,2]; }
+    else if (qual==='maj9')                                       { intervals=[0,4,7,11,14]; degrees=[1,3,5,7,2]; }
+    else                                                          { intervals=[0,4,7];       degrees=[1,3,5];   }
+
+    // Root octave: C through Eb use oct 4 (otherwise they sit too low);
+    // E through B use oct 3.
+    const rootOct  = rootSemi < 4 ? 4 : 3;
+    const rootMidi = (rootOct + 1) * 12 + rootSemi;
+
+    // Base MIDI values for root position
+    const baseMidis = intervals.map(iv => rootMidi + iv);
+
+    // Convert MIDI number to { name, oct }
+    function midiToNote(midi) {
+      const semi = ((midi % 12) + 12) % 12;
+      const oct  = Math.floor(midi / 12) - 1;
+      return { name: CHROMATIC[semi], oct };
+    }
+
+    const invLabels = ['Root position', '1st Inversion', '2nd Inversion', '3rd Inversion'];
+    const inversions = [];
+
+    // For triads: 3 inversions (root, 1st, 2nd)
+    // For 7th chords / extended: 4 inversions (root, 1st, 2nd, 3rd)
+    const numInversions = Math.min(intervals.length, 4);
+
+    for (let inv = 0; inv < numInversions; inv++) {
+      // Lower `inv` notes are raised by an octave
+      const midiNotes = baseMidis.map((midi, i) => ({
+        midi: i < inv ? midi + 12 : midi,
+        deg:  degrees[i]
+      }));
+
+      // Sort bass → treble
+      const sorted = [...midiNotes].sort((a, b) => a.midi - b.midi);
+
+      // Convert to litNote objects
+      const litNotes = sorted.map(item => {
+        const note = midiToNote(item.midi);
+        return { n: note.name, oct: note.oct, deg: item.deg };
+      });
+
+      const bassNote = litNotes[0];
+      const bassStr  = bassNote.n + bassNote.oct;
+      const noteStr  = litNotes.map(ln => ln.n).join(' · ');
+      const range    = computeRange(litNotes);
+
+      inversions.push({
+        label:    invLabels[inv],
+        bassNote: bassStr,
+        litNotes,
+        start:    range.startNote,
+        startOct: range.startOct,
+        numKeys:  range.numKeys,
+        noteStr,
+      });
+    }
+
+    return { rootName, quality: qual, inversions };
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     buildSidebarPalette()  — renders the 7-shade tone key in the sidebar
+     ───────────────────────────────────────────────────────────────────────── */
+  window.buildSidebarPalette = function() {
+    let html = '';
+    [1,2,3,4,5,6,7].forEach(d => {
+      const p = DEG[d];
+      html += `<div class="pal-row">
+        <div class="pal-swatch" style="background:${p.bg};">${d}</div>
+        <span class="pal-label"><strong>${p.label}</strong></span>
+      </div>`;
+    });
+    const el = document.getElementById('sbPalette');
+    if (el) el.innerHTML = html;
+  };
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     buildSidebarChords(d)
+     Extracts unique chords from the song data (in order of appearance),
+     renders each as a mini zoomed root-position keyboard.
+     ───────────────────────────────────────────────────────────────────────── */
+  window.buildSidebarChords = function(d) {
+    if (!d) return;
+    const seen = new Set();
+    const uniqueChords = [];
+    d.sections.forEach(sec => {
+      sec.chords.forEach(c => {
+        const ch = (typeof confirmed !== 'undefined' && confirmed[c.bar]) || c.chord;
+        if (!seen.has(ch)) { seen.add(ch); uniqueChords.push(ch); }
+      });
+    });
+
+    const SB = { ww:24, wh:68, bw:14, bh:42 };
+    let html = '';
+    uniqueChords.forEach(chName => {
+      const data = buildChordData(chName);
+      if (!data || !data.inversions.length) return;
+      const root = data.inversions[0]; // root position
+      html += `<div class="sb-chord-item">
+        <div class="sb-chord-name">${chName}</div>
+        ${piano(root.litNotes, root.start, root.startOct, root.numKeys, SB.ww, SB.wh, SB.bw, SB.bh)}
+      </div>`;
+    });
+
+    const el = document.getElementById('sbChords');
+    if (el) el.innerHTML = html || '<p style="font-size:11px;color:var(--text3);font-weight:300;">No chords to display.</p>';
+  };
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     showChordPiano(chordName)
+     Opens the piano popup for a given chord, showing stacked inversion
+     keyboards. Each keyboard is zoomed to its own note range so the
+     coloured keys visually move across the three (or four) keyboards.
+     ───────────────────────────────────────────────────────────────────────── */
+  window.showChordPiano = function(chordName) {
+    const data = buildChordData(chordName);
+    if (!data) return;
+
+    document.getElementById('ppTitle').textContent = chordName;
+
+    // Legend: unique note names from root position + their degree colour
+    const rootInv = data.inversions[0];
+    const seenN = new Set();
+    let legendHTML = '';
+    rootInv.litNotes.forEach(t => {
+      if (seenN.has(t.n)) return;
+      seenN.add(t.n);
+      const p = DEG[t.deg];
+      legendHTML += `<div class="nl-chip">
+        <div class="nl-swatch" style="background:${p.bg};">${t.n}</div>
+        <div class="nl-text"><strong>${t.n}</strong>${p.label}</div>
+      </div>`;
+    });
+    document.getElementById('ppLegend').innerHTML = legendHTML;
+
+    // Inversion rows
+    const PP = { ww:36, wh:96, bw:21, bh:60 };
+    let invHTML = '';
+    data.inversions.forEach(inv => {
+      let tags = '';
+      inv.litNotes.forEach(t => {
+        const p      = DEG[t.deg];
+        const isBass = (t.n + t.oct) === inv.bassNote;
+        tags += `<span class="inv-tag${isBass ? ' inv-tag-bass' : ''}" style="background:${p.bg};">
+          ${t.n}<span class="inv-tag-role"> ${p.label}</span>
+        </span>`;
+      });
+
+      invHTML += `<div class="inv-row">
+        <div class="inv-header">
+          <span class="inv-title">${inv.label}</span>
+          <span class="inv-bass">${inv.bassNote} bass · ${inv.noteStr}</span>
+        </div>
+        <div class="inv-kb">
+          ${piano(inv.litNotes, inv.start, inv.startOct, inv.numKeys, PP.ww, PP.wh, PP.bw, PP.bh)}
+        </div>
+        <div class="inv-tags">${tags}</div>
+      </div>`;
+    });
+    document.getElementById('ppInvRows').innerHTML = invHTML;
+
+    document.getElementById('pianoModal').classList.add('open');
+  };
+
+  window.closePianoModal = function() {
+    document.getElementById('pianoModal').classList.remove('open');
+  };
+
+  // Render the palette on page load (static — doesn't depend on song data)
+  window.buildSidebarPalette();
+
+})();
+
+/* ── Init ── */
+function init(){
+  if(apiKey){
+    const btn = document.getElementById('apiBtn');
+    btn.textContent = 'Key ✓';
+    btn.classList.add('key-configured');
+  } else {
+    openModal();
+  }
+  updateStorageCount();
+  renderSongsList();
+}
+init();
+
+/* ── Register service worker (PWA) ── */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js')
+      .catch(err => console.warn('Service worker registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>
