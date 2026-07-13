@@ -11,9 +11,30 @@ function useAI() {
   const run = useCallback(async (prompt) => {
     setLoading(true); setResult(null);
     try {
-      const text = await (window.claude?.complete(prompt) ?? Promise.resolve('AI not available in this context.'));
+      let text;
+      if (window.claude?.complete) {
+        // Inside Claude Artifacts, use the built-in.
+        text = await window.claude.complete(prompt);
+      } else {
+        // On the web, use OpenRouter with the same key as the Score Analyser.
+        let apiKey = (localStorage.getItem('sa_or_key') || '').trim();
+        if (!apiKey) {
+          apiKey = (window.prompt('Paste your OpenRouter API key (sk-or-...) to enable AI features:') || '').trim();
+          if (!apiKey) { setResult('AI needs an OpenRouter key — add one to enable it.'); setLoading(false); return; }
+          localStorage.setItem('sa_or_key', apiKey);
+        }
+        const model = localStorage.getItem('sa_or_model') || 'anthropic/claude-sonnet-4.5';
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey, 'HTTP-Referer':location.href, 'X-Title':'Circle of Fifths' },
+          body: JSON.stringify({ model, max_tokens: 400, provider:{ data_collection:'deny' }, messages:[{ role:'user', content: prompt }] })
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error.message || 'API error');
+        text = (json.choices?.[0]?.message?.content || '').trim() || 'No response.';
+      }
       setResult(text);
-    } catch(e) { setResult('Unable to connect. Please try again.'); }
+    } catch(e) { setResult('Unable to connect: ' + (e.message || e)); }
     setLoading(false);
   }, []);
   return { result, loading, run };
