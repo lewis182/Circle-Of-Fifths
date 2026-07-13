@@ -327,6 +327,62 @@ const ModesPanel = ({ keyObj, isMinor, preferFlat, accent }) => {
 };
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
+// Built-in progressions: no AI service or API key is used.
+const MAJOR_PROGRESSIONS = [
+  {name:'Classic cadence', roman:'I - IV - V - I', style:'Pop, folk and traditional music', degrees:[0,3,4,0]},
+  {name:'Pop anthem', roman:'I - V - vi - IV', style:'Modern pop and rock', degrees:[0,4,5,3]},
+  {name:'50s progression', roman:'I - vi - IV - V', style:'Doo-wop, pop and rock-and-roll', degrees:[0,5,3,4]},
+  {name:'Jazz resolution', roman:'ii7 - V7 - Imaj7', style:'Essential jazz cadence', degrees:[1,4,0], sevenths:true},
+  {name:'Jazz turnaround', roman:'Imaj7 - vi7 - ii7 - V7', style:'Standards and jazz endings', degrees:[0,5,1,4], sevenths:true},
+  {name:'12-bar blues', roman:'I7 - IV7 - I7 - I7 / IV7 - IV7 - I7 - I7 / V7 - IV7 - I7 - V7', style:'Blues and early rock', blues:true},
+];
+const MINOR_PROGRESSIONS = [
+  {name:'Minor pop', roman:'i - VI - III - VII', style:'Rock, film and modern pop', degrees:[0,5,2,6]},
+  {name:'Andalusian cadence', roman:'i - VII - VI - V', style:'Flamenco and dramatic pop', degrees:[0,6,5,4], harmonicMinor:true},
+  {name:'Minor jazz cadence', roman:'ii half-dim7 - V7 - i', style:'Essential minor-key jazz resolution', degrees:[1,4,0], minorJazz:true},
+  {name:'Minor blues', roman:'i7 - iv7 - v7', style:'Blues, soul and rock', minorBlues:true},
+];
+const chordSuffix = type => ({major:'',minor:'m',dim:'dim',maj7:'maj7',min7:'m7',dom7:'7',hdim7:'half-dim7'})[type];
+const chordLabel = (root, type, preferFlat) => noteName(root, preferFlat) + chordSuffix(type);
+
+const ProgressionCard = ({ progression, keyObj, isMinor, preferFlat, accent }) => {
+  const majorIntervals = [0,2,4,5,7,9,11];
+  const minorIntervals = [0,2,3,5,7,8,10];
+  const triadTypes = isMinor ? ['minor','dim','major','minor','minor','major','major'] : ['major','minor','minor','major','major','minor','dim'];
+  const seventhTypes = isMinor ? ['min7','hdim7','maj7','min7','min7','maj7','dom7'] : ['maj7','min7','min7','maj7','dom7','min7','hdim7'];
+  const intervals = isMinor ? minorIntervals : majorIntervals;
+  const typeFor = degree => progression.minorJazz ? (degree===1 ? 'hdim7' : degree===4 ? 'dom7' : 'minor') : progression.harmonicMinor && degree===4 ? 'major' : progression.sevenths ? seventhTypes[degree] : triadTypes[degree];
+  const chordFor = degree => chordLabel((keyObj.root + intervals[degree]) % 12, typeFor(degree), preferFlat);
+  const bluesRoots = [0,3,0,0,3,3,0,0,4,3,0,4];
+  const chords = progression.blues
+    ? bluesRoots.map(degree => chordLabel((keyObj.root + majorIntervals[degree]) % 12, 'dom7', preferFlat))
+    : progression.minorBlues
+      ? [0,3,4].map(degree => chordLabel((keyObj.root + minorIntervals[degree]) % 12, 'min7', preferFlat))
+      : progression.degrees.map(chordFor);
+  return (
+    <article style={{border:'1px solid #eee',borderLeft:'4px solid '+accent,borderRadius:8,padding:'14px 16px',marginBottom:12,background:'#fff'}}>
+      <div style={{display:'flex',gap:10,alignItems:'baseline',flexWrap:'wrap',marginBottom:7}}>
+        <strong style={{fontSize:14,color:'#222'}}>{progression.name}</strong>
+        <span style={{fontSize:12,color:accent,fontWeight:800,letterSpacing:'0.04em'}}>{progression.roman}</span>
+      </div>
+      <div style={{display:'flex',gap:7,flexWrap:'wrap',marginBottom:8}}>
+        {chords.map((chord,index)=><span key={chord+'-'+index} style={{padding:'4px 8px',borderRadius:5,background:'#f6f6f6',border:'1px solid #e6e6e6',fontSize:13,fontWeight:700,color:'#333'}}>{chord}</span>)}
+      </div>
+      <p style={{margin:0,fontSize:11,color:'#999',fontStyle:'italic'}}>{progression.style}</p>
+    </article>
+  );
+};
+const ProgressionsPanel = ({ keyObj, isMinor, preferFlat, accent }) => {
+  const progressions = isMinor ? MINOR_PROGRESSIONS : MAJOR_PROGRESSIONS;
+  return (
+    <div style={{maxWidth:760,margin:'0 auto',padding:'20px 16px 100px'}}>
+      <p style={{fontSize:12,color:'#777',margin:'0 0 18px',lineHeight:1.6}}>
+        Common progressions in <strong style={{color:'#333'}}>{keyObj.display} {isMinor?'minor':'major'}</strong>. These are built in and update instantly when you choose another key.
+      </p>
+      {progressions.map(progression => <ProgressionCard key={progression.name} progression={progression} keyObj={keyObj} isMinor={isMinor} preferFlat={preferFlat} accent={accent}/>)}
+    </div>
+  );
+};
 const MAJOR_TABS = [
   {id:'triads', icon:'△',  label:'Triads',  chords:[{t:'major',i:0},{t:'major',i:1},{t:'major',i:2},{t:'sus2',i:0},{t:'sus4',i:0}]},
   {id:'maj7',   icon:'M7', label:'Maj 7',   chords:[{t:'maj7',i:0},{t:'maj7',i:1},{t:'maj7',i:2},{t:'maj7',i:3}]},
@@ -334,6 +390,7 @@ const MAJOR_TABS = [
   {id:'dim7',   icon:'°7', label:'Dim 7',   chords:[{t:'dim7',i:0},{t:'dim7',i:1},{t:'dim7',i:2},{t:'dim7',i:3}]},
   {id:'scales', icon:'𝄞',  label:'Scales',  isScales:true, scales:['major','majorPenta','majorBlues']},
   {id:'modes',  icon:'μ',  label:'Modes',   isModes:true},
+  {id:'progressions', icon:'I-V', label:'Progressions', isProgressions:true},
   {id:'ai',     icon:'✦',  label:'AI',      isAI:true},
 ];
 const MINOR_TABS = [
@@ -343,6 +400,7 @@ const MINOR_TABS = [
   {id:'dim7',   icon:'°7', label:'Dim 7',   chords:[{t:'dim7',i:0},{t:'dim7',i:1},{t:'dim7',i:2},{t:'dim7',i:3}]},
   {id:'scales', icon:'𝄞',  label:'Scales',  isScales:true, scales:['naturalMinor','harmonicMinor','melodicMinorAsc','melodicMinorDesc','minorPenta','minorBlues']},
   {id:'modes',  icon:'μ',  label:'Modes',   isModes:true},
+  {id:'progressions', icon:'I-V', label:'Progressions', isProgressions:true},
   {id:'ai',     icon:'✦',  label:'AI',      isAI:true},
 ];
 
@@ -423,6 +481,8 @@ const KeyPage = ({ keyObj, isMinor, onBack, onNavigate, accent }) => {
       <div className="fade-up" key={activeTab}>
         {tab.isAI
           ? <AITabContent keyObj={keyObj} isMinor={isMinor} relativeKey={relKey}/>
+          : tab.isProgressions
+            ? <ProgressionsPanel keyObj={keyObj} isMinor={isMinor} preferFlat={preferFlat} accent={accent}/>
           : tab.isModes
             ? <ModesPanel keyObj={keyObj} isMinor={isMinor} preferFlat={preferFlat} accent={accent}/>
             : tab.isScales
