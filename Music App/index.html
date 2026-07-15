@@ -251,10 +251,13 @@ input.ci:focus{outline:none;border-color:var(--accent);}
     <input type="password" id="apiKeyInput" placeholder="sk-or-…" autocomplete="off">
     <label>Model</label>
     <select id="modelSelect">
-      <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5 — recommended</option>
-      <option value="anthropic/claude-opus-4.8">Claude Opus 4.8 — highest quality (pricier)</option>
+      <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5 - fast / cheaper</option>
+      <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5 - recommended</option>
+      <option value="anthropic/claude-opus-4.8">Claude Opus 4.8 - highest quality (pricier)</option>
+      <option value="openai/gpt-5-mini">OpenAI GPT-5 Mini - balanced</option>
+      <option value="openai/gpt-5.6-luna">OpenAI GPT-5.6 Luna - stronger</option>
     </select>
-    <p class="note">Only Claude is listed — these work reliably under your no-training data policy (GPT/Gemini can fail to route).<br>Get a key at openrouter.ai</p>
+    <p class="note">These models are allowed by the app and sent through OpenRouter with data collection denied. If a model is unavailable on your account, choose Claude Sonnet 4.5.<br>Get a key at openrouter.ai</p>
     <div class="modal-actions">
       <button class="abtn abtn-ghost" onclick="closeModal()">Cancel</button>
       <button class="abtn abtn-primary" onclick="saveApiKey()">Save</button>
@@ -476,7 +479,7 @@ input.ci:focus{outline:none;border-color:var(--accent);}
 let apiKey = (localStorage.getItem('sa_or_key') || '').trim();
 let selectedModel = localStorage.getItem('sa_or_model') || 'anthropic/claude-sonnet-4.5';
 // Force any old/invalid saved model to a current, compliant one (retired ids were 404-ing).
-const _okModels = ['anthropic/claude-sonnet-4.5', 'anthropic/claude-opus-4.8'];
+const _okModels = ['anthropic/claude-haiku-4.5', 'anthropic/claude-sonnet-4.5', 'anthropic/claude-opus-4.8', 'openai/gpt-5-mini', 'openai/gpt-5.6-luna'];
 if (!_okModels.includes(selectedModel)) { selectedModel = 'anthropic/claude-sonnet-4.5'; localStorage.setItem('sa_or_model', selectedModel); }
 let D = null, confirmed = {}, fmt = 'grid';
 
