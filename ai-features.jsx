@@ -24,7 +24,8 @@ function useAI() {
           return;
         }
         let model = (localStorage.getItem('sa_or_model') || '').trim();
-        if (!/^anthropic\/claude-(sonnet-4\.5|opus-4\.8)$/.test(model)) model = 'anthropic/claude-sonnet-4.5';
+        const okModels = ['anthropic/claude-haiku-4.5', 'anthropic/claude-sonnet-4.5', 'anthropic/claude-opus-4.8', 'openai/gpt-5-mini', 'openai/gpt-5.6-luna'];
+        if (!okModels.includes(model)) model = 'anthropic/claude-sonnet-4.5';
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey, 'X-Title':'Circle of Fifths' },
@@ -481,9 +482,10 @@ function AITabContent({ keyObj, isMinor, relativeKey }) {
 }
 
 // ── Global floating toolbar ───────────────────────────────────────────────
-function AIFloatingBar({ onQuiz, onSong }) {
+function AIFloatingBar({ onLearning, onQuiz, onSong }) {
   return (
     <div style={{position:'fixed',bottom:20,left:'50%',transform:'translateX(-50%)',display:'flex',gap:10,zIndex:500,background:'#fff',border:'1.5px solid #ffe0b2',borderRadius:30,padding:'8px 16px',boxShadow:'0 4px 20px rgba(255,128,0,0.18)',whiteSpace:'nowrap'}}>
+      <button onClick={onLearning} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>Learning</button>
       <button onClick={onQuiz} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>🎵 Key Quiz</button>
       <button onClick={onSong} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>🔍 Song Decoder</button>
     </div>
