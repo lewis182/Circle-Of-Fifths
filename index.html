@@ -15,7 +15,7 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
-<script type="text/babel" src="ai-features.jsx?v=4"></script>
+<script type="text/babel" src="ai-features.jsx?v=6"></script>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body,#root { height:100%; }
@@ -530,7 +530,7 @@ const CircleOfFifths = ({ onSelectKey, accent }) => {
 
   return (
     <div style={{minHeight:'calc(100vh - 48px)',background:'#f0ebe4',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'16px 12px 100px'}}>
-      <DailyChallenge/>
+
       <p style={{fontSize:11,fontWeight:700,letterSpacing:'0.35em',color:'#aaa',textTransform:'uppercase',marginBottom:16}}>Select a Key</p>
       <svg width={560} height={560} viewBox="0 0 560 560" style={{maxWidth:'min(94vw,94vh,560px)',maxHeight:'min(94vw,94vh,560px)'}}>
         <defs><filter id="sh"><feDropShadow dx="0" dy="3" stdDeviation="10" floodColor="#00000018"/></filter></defs>
@@ -625,7 +625,13 @@ const App = () => {
             ? <KeyPage keyObj={selKey} isMinor={isMinor} accent={accent} onBack={()=>nav('circle',selKey,isMinor)} onNavigate={(k,m)=>nav('key',k,m)}/>
             : <CircleOfFifths accent={accent} onSelectKey={(k,m)=>nav('key',k,m)}/>
           }
-          <AIFloatingBar onLearning={openLearning} onQuiz={()=>setShowQuiz(true)} onSong={()=>setShowSong(true)}/>
+                    {view==='circle'&&(
+            <div style={{position:'fixed',bottom:20,left:'50%',transform:'translateX(-50%)',display:'flex',gap:10,zIndex:500,background:'#fff',border:'1.5px solid #ffe0b2',borderRadius:30,padding:'8px 16px',boxShadow:'0 4px 20px rgba(255,128,0,0.18)',whiteSpace:'nowrap'}}>
+              <button onClick={openLearning} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>Learning</button>
+              <button onClick={()=>setShowQuiz(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>🎵 Key Quiz</button>
+              <button onClick={()=>setShowSong(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:20,background:'#fff8f0',border:`1px solid ${ORANGE}`,color:ORANGE,fontSize:12,fontWeight:700,cursor:'pointer'}}>🔍 Song Decoder</button>
+            </div>
+          )}
           {showQuiz&&<QuizModal onClose={()=>setShowQuiz(false)}/>}
           {showSong&&<SongDecoderModal onClose={()=>setShowSong(false)}/>}
         </>

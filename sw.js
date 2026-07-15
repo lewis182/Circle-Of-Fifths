@@ -1,7 +1,7 @@
 // Circle of Fifths — Service Worker
 // Caches all app files for full offline support on iPad
 
-const CACHE_NAME = 'cof-app-v5';
+const CACHE_NAME = 'cof-app-v7';
 const ASSETS = [
   './',
   './index.html',
